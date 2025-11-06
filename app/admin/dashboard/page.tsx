@@ -1,3 +1,4 @@
+// app/admin/dashboard/page.tsx
 /* eslint-disable @typescript-eslint/no-explicit-any */
 'use client';
 
@@ -24,6 +25,7 @@ export default function AdminDashboard() {
   const { isAuthenticated, isLoading, logout } = useAdminAuth();
   const [activeTab, setActiveTab] = useState('overview');
   const [dashboardData, setDashboardData] = useState<any>(null);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [isLoadingStats, setIsLoadingStats] = useState(false);
 
   useEffect(() => {
