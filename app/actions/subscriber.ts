@@ -1,14 +1,35 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+// app/actions/subscriber.ts
 'use server';
 
 import { prisma } from '@/lib/prisma';
 
+export interface Subscriber {
+  id: string;
+  email: string;
+  status: string;
+  createdAt: Date;
+  lastOpenedAt: Date | null;
+  name: string | null;
+  joinedAt: Date | null;
+}
+
 interface SubscriberFilter {
   search?: string;
   status?: string;
+  page?: number;
+  perPage?: number;
 }
 
-export async function getSubscribers(filters: SubscriberFilter) {
+export async function getSubscribers(filters: SubscriberFilter): Promise<{
+  success: boolean;
+  subscribers?: Subscriber[];
+  total?: number;
+  page?: number;
+  perPage?: number;
+  totalPages?: number;
+  error?: string;
+}> {
   try {
     const filter: any = {};
     if (filters.search) {
@@ -21,39 +42,45 @@ export async function getSubscribers(filters: SubscriberFilter) {
       filter.status = filters.status;
     }
 
-    const subscribers = await prisma.subscriber.findMany({
-      where: filter,
-      orderBy: { createdAt: 'desc' },
-      select: {
-        id: true,
-        email: true,
-        status: true,
-        createdAt: true,
-        lastOpenedAt: true,
-        name: true,
-      },
-    });
+    const page = filters.page ?? 1;
+    const perPage = filters.perPage ?? 10;
 
-    // Format for frontend
-    const formatted = subscribers.map(
-      (sub: {
-        id: string;
-        email: string;
-        status: string;
-        createdAt: string | number | Date;
-        lastOpenedAt: string | number | Date;
-      }) => ({
-        id: sub.id,
-        email: sub.email,
-        status: sub.status,
-        joinedDate: new Date(sub.createdAt).toISOString().split('T')[0],
-        lastOpened: sub.lastOpenedAt
-          ? new Date(sub.lastOpenedAt).toISOString().split('T')[0]
-          : null,
+    const [subscribers, total] = await Promise.all([
+      prisma.subscriber.findMany({
+        where: filter,
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * perPage,
+        take: perPage,
+        select: {
+          id: true,
+          email: true,
+          status: true,
+          createdAt: true,
+          lastOpenedAt: true,
+          name: true,
+        },
       }),
-    );
+      prisma.subscriber.count({ where: filter }),
+    ]);
 
-    return { success: true, subscribers: formatted };
+    const formatted = subscribers.map(sub => ({
+      id: sub.id,
+      email: sub.email,
+      status: sub.status,
+      createdAt: sub.createdAt,
+      lastOpenedAt: sub.lastOpenedAt,
+      joinedAt: sub.createdAt,
+      name: sub.name,
+    }));
+
+    return {
+      success: true,
+      subscribers: formatted,
+      total,
+      page,
+      perPage,
+      totalPages: Math.ceil(total / perPage),
+    };
   } catch (error) {
     console.error('[getSubscribers Error]', error);
     return { success: false, error: 'Failed to fetch subscribers' };
@@ -67,11 +94,7 @@ export async function deleteSubscribers(ids: string[]) {
     }
 
     await prisma.subscriber.deleteMany({
-      where: {
-        id: {
-          in: ids,
-        },
-      },
+      where: { id: { in: ids } },
     });
 
     return {
@@ -95,19 +118,17 @@ export async function addSubscriber(email: string, name?: string) {
       where: { email },
     });
 
-    if (existingSubscriber) {
-      if (existingSubscriber.status === 'confirmed') {
-        return { success: false, error: 'Already subscribed' };
-      }
+    if (existingSubscriber?.status === 'CONFIRMED') {
+      return { success: false, error: 'Already subscribed' };
     }
 
     const subscriber = await prisma.subscriber.upsert({
       where: { email },
-      update: { status: 'pending' },
+      update: { status: 'PENDING' },
       create: {
         email,
         name: name || email.split('@')[0],
-        status: 'pending',
+        status: 'PENDING',
       },
     });
 

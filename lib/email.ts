@@ -74,7 +74,7 @@ export async function sendEmail({
           recipientEmail: to,
           subscriberId,
           newsletterId,
-          status: 'sent',
+          status: 'SENT',
         },
       });
     }
@@ -133,7 +133,7 @@ export async function sendNewsletter({
                 recipientEmail: subscriber.email,
                 subscriberId: subscriber.id,
                 newsletterId,
-                status: 'sent',
+                status: 'SENT',
               },
             });
           }

@@ -1,8 +1,9 @@
-// app/admin/dashboard/page.tsx
 /* eslint-disable @typescript-eslint/no-explicit-any */
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { useSession, signOut } from 'next-auth/react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import {
@@ -16,48 +17,62 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 import { Users, Mail, Settings, LogOut } from 'lucide-react';
-import { useAdminAuth } from '@/hooks/use-admin-auth';
 import SubscribersList from '@/components/subscribers-list';
 import NewsletterComposer from '@/components/newsletter-composer';
 import { getDashboardStats } from '@/app/actions/dashboard';
 
 export default function AdminDashboard() {
-  const { isAuthenticated, isLoading, logout } = useAdminAuth();
+  const router = useRouter();
+  const { data: session, status } = useSession();
   const [activeTab, setActiveTab] = useState('overview');
   const [dashboardData, setDashboardData] = useState<any>(null);
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [isLoadingStats, setIsLoadingStats] = useState(false);
 
   useEffect(() => {
+    if (status === 'unauthenticated') {
+      router.push('/admin/login');
+    }
+  }, [status, router]);
+
+  useEffect(() => {
     const fetchStats = async () => {
-      setIsLoadingStats(true);
-      try {
-        const result = await getDashboardStats();
-        if (result.success) {
-          setDashboardData(result);
+      if (status === 'authenticated') {
+        setIsLoadingStats(true);
+        try {
+          const result = await getDashboardStats();
+          if (result.success) {
+            setDashboardData(result);
+          }
+        } catch (error) {
+          console.error('Failed to fetch dashboard stats:', error);
+        } finally {
+          setIsLoadingStats(false);
         }
-      } catch (error) {
-        console.error('Failed to fetch dashboard stats:', error);
-      } finally {
-        setIsLoadingStats(false);
       }
     };
 
-    if (isAuthenticated) {
-      fetchStats();
-    }
-  }, [isAuthenticated]);
+    fetchStats();
+  }, [status]);
 
-  if (isLoading || !isAuthenticated) {
+  if (status === 'loading') {
+    return (
+      <div className='flex min-h-screen items-center justify-center'>
+        <p>Loading...</p>
+      </div>
+    );
+  }
+
+  if (status === 'unauthenticated') {
     return null;
   }
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    await signOut({ callbackUrl: '/admin/login' });
   };
 
   const stats = dashboardData?.weeklyStats || [];
   const subscriberCount = dashboardData?.subscriberCount || 0;
+  const unsubscribeCount = dashboardData?.unsubscribeCount || 0;
   const openRate = dashboardData?.openRate || 0;
   const clickRate = dashboardData?.clickRate || 0;
 
@@ -70,7 +85,7 @@ export default function AdminDashboard() {
             <div>
               <h1 className='text-2xl font-bold'>Admin Dashboard</h1>
               <p className='text-sm text-muted-foreground'>
-                Manage your newsletter service
+                Welcome, {session?.user?.name || session?.user?.email}
               </p>
             </div>
             <Button
@@ -164,7 +179,7 @@ export default function AdminDashboard() {
                     <p className='text-sm text-muted-foreground'>
                       Unsubscribes
                     </p>
-                    <p className='text-3xl font-bold'>2%</p>
+                    <p className='text-3xl font-bold'>{unsubscribeCount}</p>
                   </div>
                   <Settings className='h-8 w-8 text-accent' />
                 </div>
@@ -174,42 +189,48 @@ export default function AdminDashboard() {
             {/* Chart */}
             <Card className='bg-card p-6'>
               <h2 className='mb-6 text-lg font-bold'>Performance Metrics</h2>
-              <ResponsiveContainer width='100%' height={300}>
-                <BarChart data={stats}>
-                  <CartesianGrid
-                    strokeDasharray='3 3'
-                    stroke='var(--color-border)'
-                  />
-                  <XAxis
-                    dataKey='name'
-                    stroke='var(--color-muted-foreground)'
-                  />
-                  <YAxis stroke='var(--color-muted-foreground)' />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: 'var(--color-card)',
-                      border: '1px solid var(--color-border)',
-                      color: 'var(--color-foreground)',
-                    }}
-                  />
-                  <Legend />
-                  <Bar
-                    dataKey='subscribers'
-                    fill='var(--color-primary)'
-                    name='Subscribers'
-                  />
-                  <Bar
-                    dataKey='opens'
-                    fill='var(--color-accent)'
-                    name='Opens'
-                  />
-                  <Bar
-                    dataKey='clicks'
-                    fill='var(--color-secondary)'
-                    name='Clicks'
-                  />
-                </BarChart>
-              </ResponsiveContainer>
+              {isLoadingStats ? (
+                <div className='flex justify-center py-8'>
+                  <p className='text-muted-foreground'>Loading stats...</p>
+                </div>
+              ) : (
+                <ResponsiveContainer width='100%' height={300}>
+                  <BarChart data={stats}>
+                    <CartesianGrid
+                      strokeDasharray='3 3'
+                      stroke='var(--color-border)'
+                    />
+                    <XAxis
+                      dataKey='name'
+                      stroke='var(--color-muted-foreground)'
+                    />
+                    <YAxis stroke='var(--color-muted-foreground)' />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: 'var(--color-card)',
+                        border: '1px solid var(--color-border)',
+                        color: 'var(--color-foreground)',
+                      }}
+                    />
+                    <Legend />
+                    <Bar
+                      dataKey='subscribers'
+                      fill='var(--color-primary)'
+                      name='Subscribers'
+                    />
+                    <Bar
+                      dataKey='opens'
+                      fill='var(--color-accent)'
+                      name='Opens'
+                    />
+                    <Bar
+                      dataKey='clicks'
+                      fill='var(--color-secondary)'
+                      name='Clicks'
+                    />
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
             </Card>
           </div>
         )}

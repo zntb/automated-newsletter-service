@@ -17,7 +17,7 @@ model User {
   emailVerified DateTime?
   password  String   // hashed password
   name      String?
-  role      String   @default("admin") // admin, editor, viewer
+  role      UserRole @default(ADMIN)
 
   accounts      Account[]
   sessions      Session[]
@@ -28,6 +28,14 @@ model User {
   
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@map("users")
+}
+
+enum UserRole {
+  ADMIN
+  EDITOR
+  VIEWER
 }
 
 model Account {
@@ -78,7 +86,7 @@ model Subscriber {
   id        String   @id @default(auto()) @map("_id") @db.ObjectId
   email     String   @unique
   name      String?
-  status    String   @default("pending") // pending, confirmed, unsubscribed, bounced
+  status    SubscriberStatus   @default(PENDING)
   tags      String[] @default([])
   
   // Preferences
@@ -100,7 +108,23 @@ model Subscriber {
   
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@map("subscribers")
 }
+
+enum Frequency {
+  DAILY
+  WEEKLY
+  MONTHLY
+  REALTIME
+}
+
+enum SubscriberStatus {
+  PENDING
+  CONFIRMED
+  UNSUBSCRIBED
+  BOUNCED
+} 
 
 // Subscriber preferences
 model SubscriberPreference {
@@ -108,12 +132,21 @@ model SubscriberPreference {
   subscriberId String   @unique @db.ObjectId
   subscriber  Subscriber @relation(fields: [subscriberId], references: [id], onDelete: Cascade)
   
-  frequency   String   @default("weekly") // daily, weekly, monthly, realtime
+  frequency   SubscriberPreferenceFrequency @default(DAILY)
   categories  String[] @default([])
   noEmails    Boolean  @default(false)
   
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@map("subscriber_preferences")
+}
+
+enum SubscriberPreferenceFrequency {
+  DAILY
+  WEEKLY
+  MONTHLY
+  REALTIME
 }
 
 // Email newsletters/campaigns
@@ -123,7 +156,7 @@ model Newsletter {
   subject   String
   content   String   // HTML content
   preview   String?  // Preview text
-  status    String   @default("draft") // draft, scheduled, sending, sent, failed
+  status    NewsletterStatus @default(DRAFT)
   
   // Scheduling
   scheduledFor DateTime?
@@ -147,6 +180,16 @@ model Newsletter {
   
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@map("newsletters")
+}
+
+enum NewsletterStatus {
+  DRAFT
+  SCHEDULED
+  SENDING
+  SENT
+  FAILED
 }
 
 // Email templates for reusable newsletter designs
@@ -165,6 +208,8 @@ model EmailTemplate {
   
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@map("email_templates")
 }
 
 // Email sending logs for tracking
@@ -181,7 +226,7 @@ model EmailLog {
   newsletter     Newsletter @relation(fields: [newsletterId], references: [id], onDelete: Cascade)
   
   // Status tracking
-  status      String   @default("pending") // pending, sent, delivered, opened, clicked, bounced, complained, failed
+  status       EmailLogStatus @default(PENDING)
   statusReason String?
   
   // Engagement
@@ -196,6 +241,19 @@ model EmailLog {
   
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@map("email_logs")
+}
+
+enum EmailLogStatus {
+  PENDING
+  SENT
+  DELIVERED
+  OPENED
+  CLICKED
+  BOUNCED
+  COMPLAINED
+  FAILED
 }
 
 // Campaign segments for targeting
@@ -207,6 +265,8 @@ model CampaignSegment {
   
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@map("campaign_segments")
 }
 
 // Unsubscribe log for compliance
@@ -217,4 +277,6 @@ model UnsubscribeLog {
   unsubscribedAt DateTime @default(now())
   
   createdAt DateTime @default(now())
+
+  @@map("unsubscribe_logs")
 }

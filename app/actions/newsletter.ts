@@ -22,13 +22,13 @@ export async function sendNewsletterAction(data: SendNewsletterRequest) {
     let subscribers: any[] = [];
     if (data.audience === 'all') {
       subscribers = await prisma.subscriber.findMany({
-        where: { status: 'confirmed' },
+        where: { status: 'CONFIRMED' },
         select: { email: true },
       });
     } else if (data.audience === 'active') {
       subscribers = await prisma.subscriber.findMany({
         where: {
-          status: 'confirmed',
+          status: 'CONFIRMED',
           lastOpenedAt: {
             gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
           },
@@ -38,7 +38,7 @@ export async function sendNewsletterAction(data: SendNewsletterRequest) {
     } else if (data.audience === 'new') {
       subscribers = await prisma.subscriber.findMany({
         where: {
-          status: 'confirmed',
+          status: 'CONFIRMED',
           createdAt: {
             gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
           },
@@ -48,7 +48,7 @@ export async function sendNewsletterAction(data: SendNewsletterRequest) {
     } else if (data.audience === 'engaged') {
       subscribers = await prisma.subscriber.findMany({
         where: {
-          status: 'confirmed',
+          status: 'CONFIRMED',
           openCount: { gte: 5 },
         },
         select: { email: true },
@@ -64,7 +64,7 @@ export async function sendNewsletterAction(data: SendNewsletterRequest) {
         title: data.subject,
         subject: data.subject,
         content: data.content,
-        status: 'sending',
+        status: 'SENDING',
         recipientCount: subscribers.length,
         authorId: 'system',
       },
@@ -81,7 +81,7 @@ export async function sendNewsletterAction(data: SendNewsletterRequest) {
     await prisma.newsletter.update({
       where: { id: newsletter.id },
       data: {
-        status: 'sent',
+        status: 'SENT',
         sentAt: new Date(),
         openCount: 0,
         clickCount: 0,
@@ -100,7 +100,7 @@ export async function sendNewsletterAction(data: SendNewsletterRequest) {
             recipientEmail: subscriber.email,
             subscriberId: sub.id,
             newsletterId: newsletter.id,
-            status: 'sent',
+            status: 'SENT',
           },
         });
       }
