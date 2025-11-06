@@ -1,0 +1,173 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+// Admin users for the newsletter service
+model User {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  email     String   @unique
+  password  String   // hashed password
+  name      String?
+  role      String   @default("admin") // admin, editor, viewer
+  
+  // Relations
+  newsletters Newsletter[]
+  templates   EmailTemplate[]
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Email subscribers
+model Subscriber {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  email     String   @unique
+  name      String?
+  status    String   @default("pending") // pending, confirmed, unsubscribed, bounced
+  tags      String[] @default([])
+  
+  // Preferences
+  subscribedAt      DateTime?
+  confirmedAt       DateTime?
+  unsubscribedAt    DateTime?
+  lastOpenedAt      DateTime?
+  lastClickedAt     DateTime?
+  
+  // Engagement metrics
+  openCount         Int      @default(0)
+  clickCount        Int      @default(0)
+  bounceCount       Int      @default(0)
+  complaintCount    Int      @default(0)
+  
+  // Relations
+  emailLogs   EmailLog[]
+  preferences SubscriberPreference?
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Subscriber preferences
+model SubscriberPreference {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  subscriberId String   @unique @db.ObjectId
+  subscriber  Subscriber @relation(fields: [subscriberId], references: [id], onDelete: Cascade)
+  
+  frequency   String   @default("weekly") // daily, weekly, monthly, realtime
+  categories  String[] @default([])
+  noEmails    Boolean  @default(false)
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Email newsletters/campaigns
+model Newsletter {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  title     String
+  subject   String
+  content   String   // HTML content
+  preview   String?  // Preview text
+  status    String   @default("draft") // draft, scheduled, sending, sent, failed
+  
+  // Scheduling
+  scheduledFor DateTime?
+  sentAt      DateTime?
+  
+  // Audience
+  audienceTags String[] @default([])
+  recipientCount Int @default(0)
+  
+  // Performance
+  openCount   Int     @default(0)
+  clickCount  Int     @default(0)
+  bounceCount Int     @default(0)
+  
+  // Relations
+  authorId    String  @db.ObjectId
+  author      User    @relation(fields: [authorId], references: [id])
+  templateId  String? @db.ObjectId
+  template    EmailTemplate? @relation(fields: [templateId], references: [id])
+  emailLogs   EmailLog[]
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Email templates for reusable newsletter designs
+model EmailTemplate {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  name      String   @unique
+  subject   String
+  content   String   // HTML content
+  preview   String?
+  category  String   @default("general")
+  
+  // Relations
+  authorId  String   @db.ObjectId
+  author    User     @relation(fields: [authorId], references: [id])
+  newsletters Newsletter[]
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Email sending logs for tracking
+model EmailLog {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  messageId   String?  // ID from email provider
+  
+  // Recipients and content
+  recipientEmail String
+  subscriberId   String   @db.ObjectId
+  subscriber     Subscriber @relation(fields: [subscriberId], references: [id], onDelete: Cascade)
+  
+  newsletterId   String   @db.ObjectId
+  newsletter     Newsletter @relation(fields: [newsletterId], references: [id], onDelete: Cascade)
+  
+  // Status tracking
+  status      String   @default("pending") // pending, sent, delivered, opened, clicked, bounced, complained, failed
+  statusReason String?
+  
+  // Engagement
+  openedAt    DateTime?
+  clickedAt   DateTime?
+  bouncedAt   DateTime?
+  complainedAt DateTime?
+  
+  // Retry info
+  retryCount  Int      @default(0)
+  lastRetry   DateTime?
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Campaign segments for targeting
+model CampaignSegment {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  name      String   @unique
+  description String?
+  tags      String[] // Tags that define this segment
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Unsubscribe log for compliance
+model UnsubscribeLog {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  email       String
+  reason      String?
+  unsubscribedAt DateTime @default(now())
+  
+  createdAt DateTime @default(now())
+}
