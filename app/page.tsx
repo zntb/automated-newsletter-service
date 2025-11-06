@@ -1,10 +1,49 @@
 'use client';
 import { Mail, CheckCircle, Zap } from 'lucide-react';
+import { useSearchParams } from 'next/navigation';
+import { useEffect } from 'react';
+import { toast } from 'sonner';
 import SubscribeForm from '@/components/subscribe-form';
 import Header from '@/components/header';
 import Footer from '@/components/footer';
 
 export default function Home() {
+  const searchParams = useSearchParams();
+
+  useEffect(() => {
+    const confirmed = searchParams.get('confirmed');
+    const error = searchParams.get('error');
+
+    if (confirmed === 'true') {
+      toast.success('🎉 Your subscription is confirmed!', {
+        description:
+          "Welcome aboard! You'll start receiving our newsletter soon.",
+        duration: 5000,
+      });
+
+      // Clear URL parameters
+      window.history.replaceState({}, '', '/');
+    } else if (error) {
+      let errorMessage = 'An error occurred. Please try again.';
+
+      if (error === 'missing-token') {
+        errorMessage =
+          'Invalid confirmation link. Please try subscribing again.';
+      } else if (error === 'confirmation-failed') {
+        errorMessage =
+          'Failed to confirm subscription. The link may have expired.';
+      }
+
+      toast.error('Subscription Error', {
+        description: errorMessage,
+        duration: 5000,
+      });
+
+      // Clear URL parameters
+      window.history.replaceState({}, '', '/');
+    }
+  }, [searchParams]);
+
   return (
     <main className='min-h-screen bg-background text-foreground flex flex-col'>
       <Header />
