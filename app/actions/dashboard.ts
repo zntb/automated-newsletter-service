@@ -7,7 +7,7 @@ export async function getDashboardStats() {
   try {
     const subscriberCount = await prisma.subscriber.count();
     const activeSubscribers = await prisma.subscriber.count({
-      where: { status: 'confirmed' },
+      where: { status: 'CONFIRMED' },
     });
 
     // Calculate open and click rates from email logs
@@ -58,8 +58,9 @@ export async function getDashboardStats() {
       const weekEnd = new Date(weekStart.getTime() + 7 * 24 * 60 * 60 * 1000);
 
       const weekData = weeklyNewsletters.filter(
-        (n: { sentAt: string | number | Date }) => {
-          const date = new Date(n.sentAt!);
+        (n: { sentAt: Date | null }) => {
+          if (!n.sentAt) return false;
+          const date = new Date(n.sentAt);
           return date >= weekStart && date < weekEnd;
         },
       );
