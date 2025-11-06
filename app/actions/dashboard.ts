@@ -10,6 +10,8 @@ export async function getDashboardStats() {
       where: { status: 'CONFIRMED' },
     });
 
+    const unsubscribeCount = await prisma.unsubscribeLog.count();
+
     // Calculate open and click rates from email logs
     const emailStats = await prisma.emailLog.groupBy({
       by: ['status'],
@@ -86,6 +88,7 @@ export async function getDashboardStats() {
     return {
       success: true,
       subscriberCount,
+      unsubscribeCount,
       activeSubscribers,
       openRate,
       clickRate,
@@ -97,6 +100,7 @@ export async function getDashboardStats() {
       success: false,
       error: 'Failed to fetch stats',
       subscriberCount: 0,
+      unsubscribeCount: 0,
       activeSubscribers: 0,
       openRate: 0,
       clickRate: 0,
