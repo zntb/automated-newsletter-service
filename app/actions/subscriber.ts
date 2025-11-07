@@ -95,13 +95,53 @@ export async function deleteSubscribers(ids: string[]) {
       return { success: false, error: 'Invalid subscriber IDs' };
     }
 
-    await prisma.subscriber.deleteMany({
+    // Get subscriber emails before deleting
+    const subscribers = await prisma.subscriber.findMany({
       where: { id: { in: ids } },
+      select: { email: true, id: true },
+    });
+
+    const subscriberEmails = subscribers.map(s => s.email);
+    const subscriberIds = subscribers.map(s => s.id);
+
+    // Delete in transaction to ensure data consistency
+    await prisma.$transaction(async tx => {
+      // Delete email logs
+      await tx.emailLog.deleteMany({
+        where: {
+          subscriberId: {
+            in: subscriberIds,
+          },
+        },
+      });
+
+      // Delete subscriber preferences
+      await tx.subscriberPreference.deleteMany({
+        where: {
+          subscriberId: {
+            in: subscriberIds,
+          },
+        },
+      });
+
+      // Delete unsubscribe logs
+      await tx.unsubscribeLog.deleteMany({
+        where: {
+          email: {
+            in: subscriberEmails,
+          },
+        },
+      });
+
+      // Finally delete subscribers
+      await tx.subscriber.deleteMany({
+        where: { id: { in: ids } },
+      });
     });
 
     return {
       success: true,
-      message: `Deleted ${ids.length} subscriber(s)`,
+      message: `Deleted ${ids.length} subscriber(s) and all related data`,
     };
   } catch (error) {
     console.error('[deleteSubscribers Error]', error);

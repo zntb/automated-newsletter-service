@@ -31,6 +31,14 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import {
   getSubscribers,
   deleteSubscribers,
   Subscriber,
@@ -226,130 +234,120 @@ export default function SubscribersList() {
 
       {/* Table */}
       <Card className='bg-card overflow-hidden'>
-        <div className='overflow-x-auto'>
-          <table className='w-full'>
-            <thead>
-              <tr className='border-b border-border'>
-                <th className='px-6 py-4 text-left'>
-                  <Checkbox
-                    checked={
-                      selectedIds.length === subscribers.length &&
-                      subscribers.length > 0
-                    }
-                    onCheckedChange={handleSelectAll}
-                  />
-                </th>
-                <th className='px-6 py-4 text-left text-sm font-semibold'>
-                  Email
-                </th>
-                <th className='px-6 py-4 text-left text-sm font-semibold'>
-                  Status
-                </th>
-                <th className='px-6 py-4 text-left text-sm font-semibold'>
-                  Joined
-                </th>
-                <th className='px-6 py-4 text-left text-sm font-semibold'>
-                  Last Opened
-                </th>
-                <th className='px-6 py-4 text-right text-sm font-semibold'>
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <tr>
-                  <td
-                    colSpan={6}
-                    className='px-6 py-8 text-center text-sm text-muted-foreground'
-                  >
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className='w-[50px]'>
+                <Checkbox
+                  checked={
+                    selectedIds.length === subscribers.length &&
+                    subscribers.length > 0
+                  }
+                  onCheckedChange={handleSelectAll}
+                />
+              </TableHead>
+              <TableHead className='font-semibold'>Email</TableHead>
+              <TableHead className='font-semibold'>Status</TableHead>
+              <TableHead className='font-semibold'>Joined</TableHead>
+              <TableHead className='font-semibold'>Last Opened</TableHead>
+              <TableHead className='text-right font-semibold'>
+                Actions
+              </TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {loading ? (
+              <TableRow>
+                <TableCell colSpan={6} className='h-24 text-center'>
+                  <div className='flex items-center justify-center text-sm text-muted-foreground'>
                     Loading subscribers...
-                  </td>
-                </tr>
-              ) : subscribers.length === 0 ? (
-                <tr>
-                  <td
-                    colSpan={6}
-                    className='px-6 py-8 text-center text-sm text-muted-foreground'
-                  >
+                  </div>
+                </TableCell>
+              </TableRow>
+            ) : subscribers.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={6} className='h-24 text-center'>
+                  <div className='flex items-center justify-center text-sm text-muted-foreground'>
                     No subscribers found
-                  </td>
-                </tr>
-              ) : (
-                subscribers.map(subscriber => (
-                  <tr
-                    key={subscriber.id}
-                    className='border-b border-border hover:bg-muted/50'
-                  >
-                    <td className='px-6 py-4'>
-                      <Checkbox
-                        checked={selectedIds.includes(subscriber.id)}
-                        onCheckedChange={() => handleSelectOne(subscriber.id)}
-                      />
-                    </td>
-                    <td className='px-6 py-4 text-sm'>{subscriber.email}</td>
-                    <td className='px-6 py-4 text-sm'>
-                      <span
-                        className={`inline-flex px-2 py-1 rounded-full text-xs font-medium ${
-                          subscriber.status === 'active'
-                            ? 'bg-accent/20 text-accent'
-                            : subscriber.status === 'bounced'
-                            ? 'bg-destructive/20 text-destructive'
-                            : 'bg-muted text-muted-foreground'
-                        }`}
-                      >
-                        {subscriber.status}
-                      </span>
-                    </td>
-                    <td className='px-6 py-4 text-sm text-muted-foreground'>
-                      {subscriber.joinedAt
-                        ? subscriber.joinedAt.toLocaleDateString()
-                        : 'Never'}
-                    </td>
-                    <td className='px-6 py-4 text-sm text-muted-foreground'>
-                      {subscriber.lastOpenedAt
-                        ? subscriber.lastOpenedAt.toLocaleDateString()
-                        : 'Never'}
-                    </td>
-                    <td className='px-6 py-4 text-right'>
-                      <AlertDialog
-                        open={deleteDialogOpen}
-                        onOpenChange={setDeleteDialogOpen}
-                      >
-                        <AlertDialogTrigger asChild>
-                          <Button
-                            variant='ghost'
-                            size='sm'
-                            onClick={() => setDeleteTargetId(subscriber.id)}
-                            className='text-destructive hover:bg-destructive/10'
-                          >
-                            <Trash2 className='h-4 w-4' />
-                          </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>
-                              Delete subscriber?
-                            </AlertDialogTitle>
-                            <AlertDialogDescription>
-                              This action cannot be undone.
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                            <AlertDialogAction onClick={handleDeleteConfirmed}>
-                              Confirm
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+                  </div>
+                </TableCell>
+              </TableRow>
+            ) : (
+              subscribers.map(subscriber => (
+                <TableRow
+                  key={subscriber.id}
+                  className='hover:bg-muted/50 data-[state=selected]:bg-muted'
+                >
+                  <TableCell>
+                    <Checkbox
+                      checked={selectedIds.includes(subscriber.id)}
+                      onCheckedChange={() => handleSelectOne(subscriber.id)}
+                    />
+                  </TableCell>
+                  <TableCell className='font-medium'>
+                    {subscriber.email}
+                  </TableCell>
+                  <TableCell>
+                    <span
+                      className={`inline-flex px-2 py-1 rounded-full text-xs font-medium ${
+                        subscriber.status === 'active'
+                          ? 'bg-accent/20 text-accent'
+                          : subscriber.status === 'bounced'
+                          ? 'bg-destructive/20 text-destructive'
+                          : 'bg-muted text-muted-foreground'
+                      }`}
+                    >
+                      {subscriber.status}
+                    </span>
+                  </TableCell>
+                  <TableCell className='text-muted-foreground'>
+                    {subscriber.joinedAt
+                      ? subscriber.joinedAt.toLocaleDateString()
+                      : 'Never'}
+                  </TableCell>
+                  <TableCell className='text-muted-foreground'>
+                    {subscriber.lastOpenedAt
+                      ? subscriber.lastOpenedAt.toLocaleDateString()
+                      : 'Never'}
+                  </TableCell>
+                  <TableCell className='text-right'>
+                    <AlertDialog
+                      open={deleteDialogOpen}
+                      onOpenChange={setDeleteDialogOpen}
+                    >
+                      <AlertDialogTrigger asChild>
+                        <Button
+                          variant='ghost'
+                          size='sm'
+                          onClick={() => setDeleteTargetId(subscriber.id)}
+                          className='text-destructive hover:bg-destructive/10'
+                        >
+                          <Trash2 className='h-4 w-4' />
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>
+                            Delete subscriber?
+                          </AlertDialogTitle>
+                          <AlertDialogDescription>
+                            This action cannot be undone.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogAction onClick={handleDeleteConfirmed}>
+                            Confirm
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
       </Card>
 
       {/* Pagination */}
