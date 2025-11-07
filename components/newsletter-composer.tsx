@@ -1,70 +1,97 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+// components/enhanced-newsletter-composer.tsx
 'use client';
 
 import { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Tabs } from '@/components/ui/tabs';
-import { Send, Save, Eye, Trash2, Clock, Plus, Edit } from 'lucide-react';
+import {
+  Send,
+  Eye,
+  Clock,
+  Sparkles,
+  Code,
+  FileText,
+  Image,
+  Link,
+  Bold,
+  Italic,
+  List,
+  AlignLeft,
+  X,
+  Check,
+  Copy,
+  Download,
+} from 'lucide-react';
 import { toast } from 'sonner';
 import { sendNewsletterAction } from '@/app/actions/newsletter';
-import {
-  getTemplates,
-  createTemplate,
-  updateTemplate,
-  deleteTemplate,
-  deleteTemplates,
-  type EmailTemplate,
-} from '@/app/actions/template';
+import { getTemplates, type EmailTemplate } from '@/app/actions/template';
 import {
   AlertDialog,
-  AlertDialogAction,
   AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
-import { Checkbox } from '@/components/ui/checkbox';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
+  emailTemplates,
+  replaceTemplateVariables,
+} from '@/lib/email-templates';
 
-interface Draft {
-  id: string;
-  subject: string;
-  content: string;
-  savedAt: string;
+interface EditorTool {
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+  action: string;
 }
 
 export default function NewsletterComposer() {
   const [subject, setSubject] = useState('');
   const [content, setContent] = useState('');
+  const [preheader, setPreheader] = useState('');
   const [sending, setSending] = useState(false);
   const [sendTime, setSendTime] = useState('');
   const [audience, setAudience] = useState<
     'all' | 'active' | 'new' | 'engaged'
   >('all');
-  const [drafts, setDrafts] = useState<Draft[]>([]);
   const [showPreview, setShowPreview] = useState(false);
-  const [activeTab, setActiveTab] = useState('compose');
+  const [editorMode, setEditorMode] = useState<'visual' | 'html'>('visual');
 
   // Template state
   const [templates, setTemplates] = useState<EmailTemplate[]>([]);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [loadingTemplates, setLoadingTemplates] = useState(false);
-  const [selectedTemplateIds, setSelectedTemplateIds] = useState<string[]>([]);
-  const [showTemplateDialog, setShowTemplateDialog] = useState(false);
-  const [editingTemplate, setEditingTemplate] = useState<EmailTemplate | null>(
-    null,
-  );
-  const [templateForm, setTemplateForm] = useState({
-    name: '',
-    subject: '',
-    content: '',
-    preview: '',
-    category: 'general',
-  });
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [selectedCategory, setSelectedCategory] = useState('all');
 
-  // Load templates on mount
+  // Professional templates state
+  const [showProfessionalTemplates, setShowProfessionalTemplates] =
+    useState(false);
+  const [selectedProfessionalTemplate, setSelectedProfessionalTemplate] =
+    useState<any>(null);
+  const [templateVariables, setTemplateVariables] = useState<
+    Record<string, string>
+  >({});
+
+  // Editor tools
+  const editorTools: EditorTool[] = [
+    { icon: Bold, label: 'Bold', action: 'bold' },
+    { icon: Italic, label: 'Italic', action: 'italic' },
+    { icon: List, label: 'List', action: 'list' },
+    { icon: Link, label: 'Link', action: 'link' },
+    { icon: Image, label: 'Image', action: 'image' },
+    { icon: AlignLeft, label: 'Heading', action: 'heading' },
+  ];
+
   useEffect(() => {
     loadTemplates();
   }, []);
@@ -74,18 +101,18 @@ export default function NewsletterComposer() {
     const result = await getTemplates();
     if (result.success && result.templates) {
       setTemplates(result.templates);
-    } else {
-      toast.error('Failed to load templates');
     }
     setLoadingTemplates(false);
   };
 
   const handleSend = async () => {
-    if (!subject || !content) return;
+    if (!subject || !content) {
+      toast.error('Please fill in all required fields');
+      return;
+    }
 
     setSending(true);
     try {
-      // ✅ Call the server action directly
       const result = await sendNewsletterAction({
         subject,
         content,
@@ -98,7 +125,7 @@ export default function NewsletterComposer() {
         });
         setSubject('');
         setContent('');
-        setSendTime('');
+        setPreheader('');
       } else {
         toast.error('Error', {
           description: result.error || 'Failed to send newsletter',
@@ -113,663 +140,459 @@ export default function NewsletterComposer() {
     }
   };
 
-  const handleSaveDraft = () => {
-    const newDraft: Draft = {
-      id: Date.now().toString(),
+  const handleApplyProfessionalTemplate = (template: any) => {
+    setSelectedProfessionalTemplate(template);
+    setSubject(template.subject);
+    setPreheader(template.preview);
+
+    // Initialize variables
+    const vars: Record<string, string> = {};
+    template.variables?.forEach((v: string) => {
+      vars[v] = '';
+    });
+    setTemplateVariables(vars);
+
+    setShowProfessionalTemplates(false);
+    toast.success('Template applied', {
+      description: 'Fill in the template variables to customize',
+    });
+  };
+
+  const handleGenerateContent = () => {
+    if (!selectedProfessionalTemplate) return;
+
+    const finalContent = replaceTemplateVariables(
+      selectedProfessionalTemplate.content,
+      templateVariables,
+    );
+    setContent(finalContent);
+
+    const finalSubject = replaceTemplateVariables(
+      selectedProfessionalTemplate.subject,
+      templateVariables,
+    );
+    setSubject(finalSubject);
+
+    toast.success('Content generated!', {
+      description: 'Review and customize your newsletter',
+    });
+  };
+
+  const handleInsertElement = (action: string) => {
+    const textarea = document.querySelector(
+      'textarea[name="content"]',
+    ) as HTMLTextAreaElement;
+    if (!textarea) return;
+
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const selectedText = content.substring(start, end);
+    let insertion = '';
+
+    switch (action) {
+      case 'bold':
+        insertion = `<strong>${selectedText || 'Bold text'}</strong>`;
+        break;
+      case 'italic':
+        insertion = `<em>${selectedText || 'Italic text'}</em>`;
+        break;
+      case 'list':
+        insertion = `<ul>\n  <li>Item 1</li>\n  <li>Item 2</li>\n  <li>Item 3</li>\n</ul>`;
+        break;
+      case 'link':
+        insertion = `<a href="https://example.com">${
+          selectedText || 'Link text'
+        }</a>`;
+        break;
+      case 'image':
+        insertion = `<img src="https://via.placeholder.com/600x300" alt="Image description" style="width: 100%; height: auto;" />`;
+        break;
+      case 'heading':
+        insertion = `<h2>${selectedText || 'Heading'}</h2>`;
+        break;
+    }
+
+    const newContent =
+      content.substring(0, start) + insertion + content.substring(end);
+    setContent(newContent);
+
+    // Set cursor position after insertion
+    setTimeout(() => {
+      textarea.focus();
+      textarea.setSelectionRange(
+        start + insertion.length,
+        start + insertion.length,
+      );
+    }, 0);
+  };
+
+  const handleExportTemplate = () => {
+    const templateData = {
+      name: subject || 'Untitled Template',
       subject,
       content,
-      savedAt: new Date().toLocaleString(),
+      preview: preheader,
+      category: 'custom',
+      createdAt: new Date().toISOString(),
     };
-    setDrafts([...drafts, newDraft]);
-    toast.success('Draft saved', {
-      description: 'Your newsletter draft has been saved successfully',
+
+    const blob = new Blob([JSON.stringify(templateData, null, 2)], {
+      type: 'application/json',
     });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `template-${Date.now()}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+
+    toast.success('Template exported!');
   };
 
-  const handleLoadDraft = (draft: Draft) => {
-    setSubject(draft.subject);
-    setContent(draft.content);
-    setDrafts(drafts.filter(d => d.id !== draft.id));
-    setActiveTab('compose');
-    toast.success('Draft loaded', {
-      description: 'Your draft is ready to edit',
-    });
-  };
+  const filteredTemplates =
+    selectedCategory === 'all'
+      ? templates
+      : templates.filter(t => t.category === selectedCategory);
 
-  const handleDeleteDraft = (id: string) => {
-    setDrafts(drafts.filter(d => d.id !== id));
-  };
-
-  const handleApplyTemplate = (template: EmailTemplate) => {
-    setSubject(template.subject);
-    setContent(template.content);
-    setActiveTab('compose');
-    toast.success('Template applied', {
-      description: 'You can now customize the template content',
-    });
-  };
-
-  const handleSchedule = () => {
-    if (!sendTime) {
-      toast.error('Error', {
-        description: 'Please select a time to schedule',
-      });
-      return;
-    }
-    setSending(true);
-    setTimeout(() => {
-      setSending(false);
-      setSubject('');
-      setContent('');
-      setSendTime('');
-      toast.success('Newsletter scheduled', {
-        icon: <Clock />,
-        description: `Newsletter will be sent on ${new Date(
-          sendTime,
-        ).toLocaleString()}`,
-      });
-    }, 1500);
-  };
-
-  // Template management functions
-  const openTemplateDialog = (template?: EmailTemplate) => {
-    if (template) {
-      setEditingTemplate(template);
-      setTemplateForm({
-        name: template.name,
-        subject: template.subject,
-        content: template.content,
-        preview: template.preview || '',
-        category: template.category,
-      });
-    } else {
-      setEditingTemplate(null);
-      setTemplateForm({
-        name: '',
-        subject: '',
-        content: '',
-        preview: '',
-        category: 'general',
-      });
-    }
-    setShowTemplateDialog(true);
-  };
-
-  const handleSaveTemplate = async () => {
-    if (!templateForm.name || !templateForm.subject || !templateForm.content) {
-      toast.error('Error', {
-        description: 'Please fill in all required fields',
-      });
-      return;
-    }
-
-    try {
-      if (editingTemplate) {
-        // Update existing template
-        const result = await updateTemplate(editingTemplate.id, templateForm);
-        if (result.success) {
-          toast.success('Template updated successfully');
-          await loadTemplates();
-          setShowTemplateDialog(false);
-        } else {
-          toast.error('Error', {
-            description: result.error || 'Failed to update template',
-          });
-        }
-      } else {
-        // Create new template
-        const result = await createTemplate(templateForm);
-        if (result.success) {
-          toast.success('Template created successfully');
-          await loadTemplates();
-          setShowTemplateDialog(false);
-        } else {
-          toast.error('Error', {
-            description: result.error || 'Failed to create template',
-          });
-        }
-      }
-    } catch (error) {
-      console.error('Error saving template:', error);
-      toast.error('Error', {
-        description: 'An unexpected error occurred',
-      });
-    }
-  };
-
-  const handleDeleteTemplate = async (id: string) => {
-    const result = await deleteTemplate(id);
-    if (result.success) {
-      toast.success('Template deleted successfully');
-      await loadTemplates();
-    } else {
-      toast.error('Error', {
-        description: result.error || 'Failed to delete template',
-      });
-    }
-  };
-
-  const handleBulkDeleteTemplates = async () => {
-    if (selectedTemplateIds.length === 0) return;
-
-    const result = await deleteTemplates(selectedTemplateIds);
-    if (result.success) {
-      toast.success(`Deleted ${result.deleted} template(s)`);
-      setSelectedTemplateIds([]);
-      await loadTemplates();
-    } else {
-      toast.error('Error', {
-        description: result.error || 'Failed to delete templates',
-      });
-    }
-  };
-
-  const toggleTemplateSelection = (id: string) => {
-    setSelectedTemplateIds(prev =>
-      prev.includes(id) ? prev.filter(tid => tid !== id) : [...prev, id],
-    );
-  };
-
-  const toggleSelectAllTemplates = () => {
-    if (selectedTemplateIds.length === templates.length) {
-      setSelectedTemplateIds([]);
-    } else {
-      setSelectedTemplateIds(templates.map(t => t.id));
-    }
-  };
+  const categories = Array.from(new Set(templates.map(t => t.category)));
 
   return (
     <div className='space-y-6'>
-      <Tabs value={activeTab} onValueChange={setActiveTab} className='w-full'>
-        <div className='border-b border-border'>
-          <div className='flex gap-8'>
-            <button
-              onClick={() => setActiveTab('compose')}
-              className={`border-b-2 px-0 py-4 text-sm font-medium transition ${
-                activeTab === 'compose'
-                  ? 'border-primary text-primary'
-                  : 'border-transparent text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              Compose
-            </button>
-            <button
-              onClick={() => setActiveTab('templates')}
-              className={`border-b-2 px-0 py-4 text-sm font-medium transition ${
-                activeTab === 'templates'
-                  ? 'border-primary text-primary'
-                  : 'border-transparent text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              Templates ({templates.length})
-            </button>
-            <button
-              onClick={() => setActiveTab('drafts')}
-              className={`border-b-2 px-0 py-4 text-sm font-medium transition ${
-                activeTab === 'drafts'
-                  ? 'border-primary text-primary'
-                  : 'border-transparent text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              Drafts ({drafts.length})
-            </button>
-          </div>
+      <div className='flex items-center justify-between'>
+        <div>
+          <h2 className='text-2xl font-bold'>Newsletter Composer</h2>
+          <p className='text-sm text-muted-foreground'>
+            Create beautiful newsletters with professional templates
+          </p>
         </div>
+        <Button
+          onClick={() => setShowProfessionalTemplates(true)}
+          className='bg-primary text-primary-foreground hover:bg-primary/90'
+        >
+          <Sparkles className='h-4 w-4 mr-2' />
+          Browse Templates
+        </Button>
+      </div>
 
-        {/* Compose Tab */}
-        {activeTab === 'compose' && (
-          <div className='pt-6'>
-            <div className='grid gap-6 lg:grid-cols-3'>
-              <div className='lg:col-span-2 space-y-6'>
-                <Card className='bg-card p-6'>
-                  <h2 className='mb-6 text-lg font-bold'>Newsletter Details</h2>
-
-                  <div className='space-y-4'>
-                    <div>
-                      <label className='mb-2 block text-sm font-medium'>
-                        Subject Line
-                      </label>
-                      <Input
-                        placeholder="What's the main topic?"
-                        value={subject}
-                        onChange={e => setSubject(e.target.value)}
-                        className='bg-background'
-                      />
-                    </div>
-
-                    <div>
-                      <label className='mb-2 block text-sm font-medium'>
-                        Content
-                      </label>
-                      <textarea
-                        placeholder='Write your newsletter content here... You can use HTML formatting.'
-                        value={content}
-                        onChange={e => setContent(e.target.value)}
-                        className='h-64 w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary'
-                      />
-                    </div>
-                  </div>
-                </Card>
-              </div>
-
-              <div className='space-y-6'>
-                <Card className='bg-card p-6'>
-                  <h3 className='mb-4 font-bold flex items-center gap-2'>
-                    <Clock className='h-4 w-4' />
-                    Send Options
-                  </h3>
-                  <div className='space-y-4'>
-                    <div>
-                      <label className='mb-2 block text-sm font-medium'>
-                        Send Type
-                      </label>
-                      <select className='w-full rounded-md border border-border bg-background px-3 py-2 text-sm'>
-                        <option value='now'>Send Now</option>
-                        <option value='scheduled'>Schedule</option>
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className='mb-2 block text-sm font-medium'>
-                        Schedule Time
-                      </label>
-                      <Input
-                        type='datetime-local'
-                        value={sendTime}
-                        onChange={e => setSendTime(e.target.value)}
-                        className='bg-background'
-                      />
-                    </div>
-
-                    <div>
-                      <label className='mb-2 block text-sm font-medium'>
-                        Audience
-                      </label>
-                      <select
-                        value={audience}
-                        onChange={e =>
-                          setAudience(
-                            e.target.value as
-                              | 'all'
-                              | 'active'
-                              | 'new'
-                              | 'engaged',
-                          )
-                        }
-                        className='w-full rounded-md border border-border bg-background px-3 py-2 text-sm'
-                      >
-                        <option value='all'>All subscribers</option>
-                        <option value='active'>Active only</option>
-                        <option value='new'>New subscribers</option>
-                        <option value='engaged'>Highly engaged</option>
-                      </select>
-                    </div>
-                  </div>
-                </Card>
-
-                <div className='space-y-3'>
-                  <Button
-                    onClick={() => setShowPreview(!showPreview)}
-                    variant='outline'
-                    className='w-full bg-transparent flex items-center justify-center gap-2'
-                  >
-                    <Eye className='h-4 w-4' />
-                    {showPreview ? 'Hide' : 'Preview'}
-                  </Button>
-
-                  <Button
-                    onClick={handleSend}
-                    disabled={!subject || !content || sending}
-                    className='w-full bg-primary text-primary-foreground hover:bg-primary/90'
-                  >
-                    <Send className='mr-2 h-4 w-4' />
-                    {sending ? 'Sending...' : 'Send Now'}
-                  </Button>
-
-                  <Button
-                    onClick={handleSchedule}
-                    disabled={!subject || !content || !sendTime || sending}
-                    variant='outline'
-                    className='w-full bg-transparent'
-                  >
-                    <Clock className='mr-2 h-4 w-4' />
-                    Schedule
-                  </Button>
-
-                  <Button
-                    onClick={handleSaveDraft}
-                    disabled={!subject || !content}
-                    variant='outline'
-                    className='w-full bg-transparent'
-                  >
-                    <Save className='mr-2 h-4 w-4' />
-                    Save Draft
-                  </Button>
-                </div>
-              </div>
-            </div>
-
-            {/* Preview */}
-            {showPreview && (
-              <Card className='mt-6 bg-card p-6'>
-                <h3 className='mb-4 font-bold'>Preview</h3>
-                <div className='rounded-md border border-border bg-background p-6'>
-                  <div className='mb-4 pb-4 border-b border-border'>
-                    <h2 className='text-xl font-bold'>
-                      {subject || 'Your subject here'}
-                    </h2>
-                    <p className='text-xs text-muted-foreground'>
-                      To: All subscribers
-                    </p>
-                  </div>
-                  <div
-                    className='prose prose-sm max-w-none text-foreground'
-                    dangerouslySetInnerHTML={{
-                      __html: content || 'Your content will appear here...',
-                    }}
-                  />
-                </div>
-              </Card>
-            )}
-          </div>
-        )}
-
-        {/* Templates Tab */}
-        {activeTab === 'templates' && (
-          <div className='pt-6'>
-            <div className='mb-6 flex items-center justify-between'>
-              <div className='flex items-center gap-4'>
-                {selectedTemplateIds.length > 0 && (
-                  <>
-                    <Checkbox
-                      checked={selectedTemplateIds.length === templates.length}
-                      onCheckedChange={toggleSelectAllTemplates}
-                    />
-                    <span className='text-sm text-muted-foreground'>
-                      {selectedTemplateIds.length} selected
-                    </span>
-                    <AlertDialog>
-                      <AlertDialogTrigger asChild>
-                        <Button
-                          size='sm'
-                          variant='outline'
-                          className='bg-transparent text-destructive hover:bg-destructive/10'
-                        >
-                          <Trash2 className='h-4 w-4 mr-2' />
-                          Delete Selected
-                        </Button>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent>
-                        <AlertDialogHeader>
-                          <AlertDialogTitle>
-                            Delete {selectedTemplateIds.length} template(s)?
-                          </AlertDialogTitle>
-                          <AlertDialogDescription>
-                            This action cannot be undone. Templates in use by
-                            newsletters cannot be deleted.
-                          </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel>Cancel</AlertDialogCancel>
-                          <AlertDialogAction
-                            onClick={handleBulkDeleteTemplates}
-                          >
-                            Delete
-                          </AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
-                  </>
-                )}
-              </div>
-              <Button
-                onClick={() => openTemplateDialog()}
-                className='bg-primary text-primary-foreground hover:bg-primary/90'
-              >
-                <Plus className='h-4 w-4 mr-2' />
-                New Template
-              </Button>
-            </div>
-
-            {loadingTemplates ? (
-              <Card className='bg-card p-12 text-center'>
-                <p className='text-muted-foreground'>Loading templates...</p>
-              </Card>
-            ) : templates.length === 0 ? (
-              <Card className='bg-card p-12 text-center'>
-                <p className='text-muted-foreground mb-4'>
-                  No templates yet. Create your first template to get started.
-                </p>
-                <Button
-                  onClick={() => openTemplateDialog()}
-                  className='bg-primary text-primary-foreground hover:bg-primary/90'
-                >
-                  <Plus className='h-4 w-4 mr-2' />
-                  Create Template
-                </Button>
-              </Card>
-            ) : (
-              <div className='grid gap-4 md:grid-cols-2 lg:grid-cols-3'>
-                {templates.map(template => (
-                  <Card
-                    key={template.id}
-                    className='bg-card p-6 flex flex-col gap-4'
-                  >
-                    <div className='flex items-start gap-3'>
-                      <Checkbox
-                        checked={selectedTemplateIds.includes(template.id)}
-                        onCheckedChange={() =>
-                          toggleTemplateSelection(template.id)
-                        }
-                      />
-                      <div className='flex-1'>
-                        <div className='flex items-start justify-between mb-2'>
-                          <div>
-                            <h3 className='font-bold'>{template.name}</h3>
-                            <span className='text-xs text-muted-foreground'>
-                              {template.category}
-                            </span>
-                          </div>
-                        </div>
-                        <p className='text-sm text-muted-foreground line-clamp-2 mb-2'>
-                          {template.preview || template.subject}
-                        </p>
-                      </div>
-                    </div>
-                    <div className='flex gap-2'>
-                      <Button
-                        onClick={() => handleApplyTemplate(template)}
-                        size='sm'
-                        className='flex-1 bg-primary text-primary-foreground hover:bg-primary/90'
-                      >
-                        Use Template
-                      </Button>
-                      <Button
-                        onClick={() => openTemplateDialog(template)}
-                        size='sm'
-                        variant='outline'
-                        className='bg-transparent'
-                      >
-                        <Edit className='h-4 w-4' />
-                      </Button>
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <Button
-                            size='sm'
-                            variant='ghost'
-                            className='text-destructive hover:bg-destructive/10'
-                          >
-                            <Trash2 className='h-4 w-4' />
-                          </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>
-                              Delete template?
-                            </AlertDialogTitle>
-                            <AlertDialogDescription>
-                              This action cannot be undone. The template cannot
-                              be deleted if it&apos;s being used by any
-                              newsletters.
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                            <AlertDialogAction
-                              onClick={() => handleDeleteTemplate(template.id)}
-                            >
-                              Delete
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
-                    </div>
-                  </Card>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Drafts Tab */}
-        {activeTab === 'drafts' && (
-          <div className='pt-6'>
-            {drafts.length === 0 ? (
-              <Card className='bg-card p-12 text-center'>
-                <p className='text-muted-foreground'>
-                  No drafts yet. Save your first draft to see it here.
-                </p>
-              </Card>
-            ) : (
-              <div className='space-y-3'>
-                {drafts.map(draft => (
-                  <Card
-                    key={draft.id}
-                    className='bg-card p-4 flex items-center justify-between'
-                  >
-                    <div className='flex-1'>
-                      <h3 className='font-medium'>{draft.subject}</h3>
-                      <p className='text-xs text-muted-foreground'>
-                        Saved: {draft.savedAt}
-                      </p>
-                    </div>
-                    <div className='flex gap-2'>
-                      <Button
-                        onClick={() => handleLoadDraft(draft)}
-                        size='sm'
-                        className='bg-primary text-primary-foreground hover:bg-primary/90'
-                      >
-                        Load
-                      </Button>
-                      <Button
-                        onClick={() => handleDeleteDraft(draft.id)}
-                        size='sm'
-                        variant='ghost'
-                        className='text-destructive hover:bg-destructive/10'
-                      >
-                        <Trash2 className='h-4 w-4' />
-                      </Button>
-                    </div>
-                  </Card>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-      </Tabs>
-
-      {/* Template Create/Edit Dialog */}
+      {/* Professional Templates Modal */}
       <AlertDialog
-        open={showTemplateDialog}
-        onOpenChange={setShowTemplateDialog}
+        open={showProfessionalTemplates}
+        onOpenChange={setShowProfessionalTemplates}
       >
-        <AlertDialogContent className='max-w-2xl'>
+        <AlertDialogContent className='max-w-4xl max-h-[80vh] overflow-y-auto'>
           <AlertDialogHeader>
-            <AlertDialogTitle>
-              {editingTemplate ? 'Edit Template' : 'Create New Template'}
-            </AlertDialogTitle>
+            <AlertDialogTitle>Professional Email Templates</AlertDialogTitle>
             <AlertDialogDescription>
-              Fill in the template details below
+              Choose from our collection of professionally designed templates
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <div className='space-y-4 py-4'>
-            <div>
-              <label className='mb-2 block text-sm font-medium'>
-                Template Name *
-              </label>
-              <Input
-                placeholder='e.g., Weekly Newsletter'
-                value={templateForm.name}
-                onChange={e =>
-                  setTemplateForm({ ...templateForm, name: e.target.value })
-                }
-                className='bg-background'
-              />
-            </div>
-            <div>
-              <label className='mb-2 block text-sm font-medium'>
-                Subject Line *
-              </label>
-              <Input
-                placeholder='e.g., Weekly Digest - {{date}}'
-                value={templateForm.subject}
-                onChange={e =>
-                  setTemplateForm({ ...templateForm, subject: e.target.value })
-                }
-                className='bg-background'
-              />
-            </div>
-            <div>
-              <label className='mb-2 block text-sm font-medium'>
-                Preview Text
-              </label>
-              <Input
-                placeholder='Short preview text'
-                value={templateForm.preview}
-                onChange={e =>
-                  setTemplateForm({ ...templateForm, preview: e.target.value })
-                }
-                className='bg-background'
-              />
-            </div>
-            <div>
-              <label className='mb-2 block text-sm font-medium'>Category</label>
-              <select
-                value={templateForm.category}
-                onChange={e =>
-                  setTemplateForm({ ...templateForm, category: e.target.value })
-                }
-                className='w-full rounded-md border border-border bg-background px-3 py-2 text-sm'
+
+          <div className='grid gap-4 md:grid-cols-2 py-4'>
+            {emailTemplates.map((template, index) => (
+              <Card
+                key={index}
+                className='bg-card p-4 hover:shadow-lg transition-shadow cursor-pointer'
               >
-                <option value='general'>General</option>
-                <option value='newsletter'>Newsletter</option>
-                <option value='announcement'>Announcement</option>
-                <option value='welcome'>Welcome</option>
-                <option value='marketing'>Marketing</option>
-              </select>
-            </div>
-            <div>
-              <label className='mb-2 block text-sm font-medium'>
-                Content (HTML) *
-              </label>
-              <textarea
-                placeholder='Your HTML content here...'
-                value={templateForm.content}
-                onChange={e =>
-                  setTemplateForm({ ...templateForm, content: e.target.value })
-                }
-                className='h-48 w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary'
-              />
-            </div>
+                <div className='space-y-3'>
+                  <div className='flex items-start justify-between'>
+                    <div>
+                      <h3 className='font-bold text-lg'>{template.name}</h3>
+                      <span className='text-xs px-2 py-1 bg-muted rounded-full text-muted-foreground'>
+                        {template.category}
+                      </span>
+                    </div>
+                  </div>
+                  <p className='text-sm text-muted-foreground line-clamp-2'>
+                    {template.preview}
+                  </p>
+                  <div className='flex flex-wrap gap-1'>
+                    {template.variables?.slice(0, 3).map((v, i) => (
+                      <span
+                        key={i}
+                        className='text-xs px-2 py-1 bg-accent/20 rounded text-accent'
+                      >
+                        {v}
+                      </span>
+                    ))}
+                    {template.variables && template.variables.length > 3 && (
+                      <span className='text-xs px-2 py-1 bg-muted rounded text-muted-foreground'>
+                        +{template.variables.length - 3} more
+                      </span>
+                    )}
+                  </div>
+                  <Button
+                    onClick={() => handleApplyProfessionalTemplate(template)}
+                    size='sm'
+                    className='w-full bg-primary text-primary-foreground hover:bg-primary/90'
+                  >
+                    Use Template
+                  </Button>
+                </div>
+              </Card>
+            ))}
           </div>
+
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleSaveTemplate}>
-              {editingTemplate ? 'Update' : 'Create'}
-            </AlertDialogAction>
+            <AlertDialogCancel>Close</AlertDialogCancel>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Template Variables Section */}
+      {selectedProfessionalTemplate && (
+        <Card className='bg-accent/10 border-accent/20 p-6'>
+          <div className='flex items-center justify-between mb-4'>
+            <div>
+              <h3 className='font-bold flex items-center gap-2'>
+                <Sparkles className='h-4 w-4 text-accent' />
+                Template Variables
+              </h3>
+              <p className='text-sm text-muted-foreground'>
+                Customize your template by filling in these values
+              </p>
+            </div>
+            <Button
+              onClick={() => {
+                setSelectedProfessionalTemplate(null);
+                setTemplateVariables({});
+              }}
+              variant='ghost'
+              size='sm'
+            >
+              <X className='h-4 w-4' />
+            </Button>
+          </div>
+
+          <div className='grid gap-4 md:grid-cols-2'>
+            {selectedProfessionalTemplate.variables?.map((variable: string) => (
+              <div key={variable}>
+                <label className='mb-2 block text-sm font-medium capitalize'>
+                  {variable.replace(/_/g, ' ')}
+                </label>
+                <Input
+                  placeholder={`Enter ${variable.replace(/_/g, ' ')}`}
+                  value={templateVariables[variable] || ''}
+                  onChange={e =>
+                    setTemplateVariables({
+                      ...templateVariables,
+                      [variable]: e.target.value,
+                    })
+                  }
+                  className='bg-card'
+                />
+              </div>
+            ))}
+          </div>
+
+          <Button
+            onClick={handleGenerateContent}
+            className='mt-4 bg-accent text-accent-foreground hover:bg-accent/90'
+          >
+            <Check className='h-4 w-4 mr-2' />
+            Generate Content
+          </Button>
+        </Card>
+      )}
+
+      {/* Main Composer */}
+      <div className='grid gap-6 lg:grid-cols-3'>
+        <div className='lg:col-span-2 space-y-6'>
+          <Card className='bg-card p-6'>
+            <div className='space-y-4'>
+              <div>
+                <label className='mb-2 block text-sm font-medium'>
+                  Subject Line *
+                </label>
+                <Input
+                  placeholder='Grab their attention...'
+                  value={subject}
+                  onChange={e => setSubject(e.target.value)}
+                  className='bg-background'
+                />
+              </div>
+
+              <div>
+                <label className='mb-2 block text-sm font-medium'>
+                  Preheader Text
+                </label>
+                <Input
+                  placeholder='Preview text that appears after the subject'
+                  value={preheader}
+                  onChange={e => setPreheader(e.target.value)}
+                  className='bg-background'
+                />
+              </div>
+
+              <div className='flex items-center justify-between border-b pb-2'>
+                <label className='text-sm font-medium'>Content *</label>
+                <div className='flex items-center gap-2'>
+                  <Button
+                    onClick={() => setEditorMode('visual')}
+                    variant={editorMode === 'visual' ? 'default' : 'ghost'}
+                    size='sm'
+                  >
+                    <FileText className='h-4 w-4 mr-1' />
+                    Visual
+                  </Button>
+                  <Button
+                    onClick={() => setEditorMode('html')}
+                    variant={editorMode === 'html' ? 'default' : 'ghost'}
+                    size='sm'
+                  >
+                    <Code className='h-4 w-4 mr-1' />
+                    HTML
+                  </Button>
+                </div>
+              </div>
+
+              {editorMode === 'visual' && (
+                <div className='flex flex-wrap gap-1 p-2 bg-muted/50 rounded-t-md border-b'>
+                  {editorTools.map((tool, index) => (
+                    <Button
+                      key={index}
+                      onClick={() => handleInsertElement(tool.action)}
+                      variant='ghost'
+                      size='sm'
+                      title={tool.label}
+                      className='h-8 w-8 p-0'
+                    >
+                      <tool.icon className='h-4 w-4' />
+                    </Button>
+                  ))}
+                </div>
+              )}
+
+              <textarea
+                name='content'
+                placeholder={
+                  editorMode === 'html'
+                    ? 'Write your HTML content here...'
+                    : 'Start typing or use the toolbar to format your content...'
+                }
+                value={content}
+                onChange={e => setContent(e.target.value)}
+                className='h-96 w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary font-mono'
+              />
+            </div>
+          </Card>
+        </div>
+
+        <div className='space-y-6'>
+          <Card className='bg-card p-6'>
+            <h3 className='mb-4 font-bold flex items-center gap-2'>
+              <Clock className='h-4 w-4' />
+              Send Options
+            </h3>
+            <div className='space-y-4'>
+              <div>
+                <label className='mb-2 block text-sm font-medium'>
+                  Audience
+                </label>
+                <Select
+                  value={audience}
+                  onValueChange={(val: any) => setAudience(val)}
+                >
+                  <SelectTrigger className='bg-background'>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value='all'>All subscribers</SelectItem>
+                    <SelectItem value='active'>Active only</SelectItem>
+                    <SelectItem value='new'>New subscribers</SelectItem>
+                    <SelectItem value='engaged'>Highly engaged</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <label className='mb-2 block text-sm font-medium'>
+                  Schedule (Optional)
+                </label>
+                <Input
+                  type='datetime-local'
+                  value={sendTime}
+                  onChange={e => setSendTime(e.target.value)}
+                  className='bg-background'
+                />
+              </div>
+            </div>
+          </Card>
+
+          <div className='space-y-3'>
+            <Button
+              onClick={() => setShowPreview(!showPreview)}
+              variant='outline'
+              className='w-full bg-transparent'
+            >
+              <Eye className='h-4 w-4 mr-2' />
+              {showPreview ? 'Hide' : 'Preview'}
+            </Button>
+
+            <Button
+              onClick={handleSend}
+              disabled={!subject || !content || sending}
+              className='w-full bg-primary text-primary-foreground hover:bg-primary/90'
+            >
+              <Send className='mr-2 h-4 w-4' />
+              {sending ? 'Sending...' : 'Send Now'}
+            </Button>
+
+            <Button
+              onClick={handleExportTemplate}
+              disabled={!subject || !content}
+              variant='outline'
+              className='w-full bg-transparent'
+            >
+              <Download className='h-4 w-4 mr-2' />
+              Export Template
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      {/* Preview */}
+      {showPreview && (
+        <Card className='bg-card p-6'>
+          <div className='flex items-center justify-between mb-4'>
+            <h3 className='font-bold'>Preview</h3>
+            <Button
+              onClick={() => {
+                navigator.clipboard.writeText(content);
+                toast.success('HTML copied to clipboard');
+              }}
+              variant='ghost'
+              size='sm'
+            >
+              <Copy className='h-4 w-4 mr-2' />
+              Copy HTML
+            </Button>
+          </div>
+          <div className='rounded-md border border-border bg-background p-6'>
+            <div className='mb-4 pb-4 border-b border-border'>
+              <h2 className='text-xl font-bold mb-1'>
+                {subject || 'Your subject here'}
+              </h2>
+              {preheader && (
+                <p className='text-sm text-muted-foreground'>{preheader}</p>
+              )}
+              <p className='text-xs text-muted-foreground mt-2'>
+                To:{' '}
+                {audience === 'all'
+                  ? 'All subscribers'
+                  : `${audience} subscribers`}
+              </p>
+            </div>
+            <div
+              className='prose prose-sm max-w-none'
+              dangerouslySetInnerHTML={{
+                __html:
+                  content ||
+                  '<p class="text-muted-foreground">Your content will appear here...</p>',
+              }}
+            />
+          </div>
+        </Card>
+      )}
     </div>
   );
 }
