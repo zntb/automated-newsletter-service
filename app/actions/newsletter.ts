@@ -1,8 +1,8 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 'use server';
 
 import { prisma } from '@/lib/prisma';
 import { sendNewsletter } from '@/lib/email';
+import { auth } from '@/auth';
 
 interface SendNewsletterRequest {
   subject: string;
@@ -12,6 +12,8 @@ interface SendNewsletterRequest {
 
 export async function sendNewsletterAction(data: SendNewsletterRequest) {
   try {
+    console.log('[sendNewsletterAction] Starting with data:', data);
+
     if (!data.subject || !data.content) {
       return {
         success: false,
@@ -19,11 +21,20 @@ export async function sendNewsletterAction(data: SendNewsletterRequest) {
       };
     }
 
-    let subscribers: any[] = [];
+    // Get authenticated user
+    const session = await auth();
+    console.log('[sendNewsletterAction] Session:', session);
+
+    if (!session?.user?.id) {
+      return { success: false, error: 'Unauthorized' };
+    }
+
+    let subscribers: Array<{ id: string; email: string }> = [];
+
     if (data.audience === 'all') {
       subscribers = await prisma.subscriber.findMany({
         where: { status: 'CONFIRMED' },
-        select: { email: true },
+        select: { id: true, email: true },
       });
     } else if (data.audience === 'active') {
       subscribers = await prisma.subscriber.findMany({
@@ -33,7 +44,7 @@ export async function sendNewsletterAction(data: SendNewsletterRequest) {
             gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
           },
         },
-        select: { email: true },
+        select: { id: true, email: true },
       });
     } else if (data.audience === 'new') {
       subscribers = await prisma.subscriber.findMany({
@@ -43,7 +54,7 @@ export async function sendNewsletterAction(data: SendNewsletterRequest) {
             gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
           },
         },
-        select: { email: true },
+        select: { id: true, email: true },
       });
     } else if (data.audience === 'engaged') {
       subscribers = await prisma.subscriber.findMany({
@@ -51,9 +62,15 @@ export async function sendNewsletterAction(data: SendNewsletterRequest) {
           status: 'CONFIRMED',
           openCount: { gte: 5 },
         },
-        select: { email: true },
+        select: { id: true, email: true },
       });
     }
+
+    console.log(
+      '[sendNewsletterAction] Found subscribers:',
+      subscribers.length,
+    );
+    console.log('[sendNewsletterAction] Subscribers:', subscribers);
 
     if (subscribers.length === 0) {
       return { success: false, error: 'No subscribers to send to' };
@@ -66,50 +83,36 @@ export async function sendNewsletterAction(data: SendNewsletterRequest) {
         content: data.content,
         status: 'SENDING',
         recipientCount: subscribers.length,
-        authorId: 'system',
+        authorId: session.user.id,
       },
     });
 
-    // Send newsletter and create email logs
+    console.log('[sendNewsletterAction] Newsletter created:', newsletter.id);
+
+    // Send newsletter
     const result = await sendNewsletter({
       subject: data.subject,
       content: data.content,
       audience: data.audience,
-      subscribers: subscribers.map(s => s.email),
+      subscribers: subscribers,
+      newsletterId: newsletter.id,
     });
+
+    console.log('[sendNewsletterAction] Send result:', result);
 
     await prisma.newsletter.update({
       where: { id: newsletter.id },
       data: {
         status: 'SENT',
         sentAt: new Date(),
-        openCount: 0,
-        clickCount: 0,
       },
     });
-
-    // Create email logs for tracking
-    for (const subscriber of subscribers) {
-      const sub = await prisma.subscriber.findUnique({
-        where: { email: subscriber.email },
-      });
-
-      if (sub) {
-        await prisma.emailLog.create({
-          data: {
-            recipientEmail: subscriber.email,
-            subscriberId: sub.id,
-            newsletterId: newsletter.id,
-            status: 'SENT',
-          },
-        });
-      }
-    }
 
     return {
       success: true,
       newsletterId: newsletter.id,
-      ...result,
+      sent: result.sent,
+      failed: result.failed,
       timestamp: new Date().toISOString(),
     };
   } catch (error) {

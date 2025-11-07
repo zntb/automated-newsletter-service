@@ -97,7 +97,7 @@ export async function sendNewsletter({
 }: {
   subject: string;
   content: string;
-  subscribers: Array<{ id: string; email: string }>;
+  subscribers: Array<{ id: string; email: string }>; // ✅ Now expects objects
   audience?: string;
   newsletterId?: string;
 }) {
