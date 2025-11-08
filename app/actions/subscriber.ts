@@ -14,6 +14,10 @@ export interface Subscriber {
   lastOpenedAt: Date | null;
   name: string | null;
   joinedAt: Date | null;
+  preferences?: {
+    frequency: string;
+    categories: string[];
+  } | null;
 }
 
 interface SubscriberFilter {
@@ -60,6 +64,12 @@ export async function getSubscribers(filters: SubscriberFilter): Promise<{
           createdAt: true,
           lastOpenedAt: true,
           name: true,
+          preferences: {
+            select: {
+              frequency: true,
+              categories: true,
+            },
+          },
         },
       }),
       prisma.subscriber.count({ where: filter }),
@@ -73,6 +83,12 @@ export async function getSubscribers(filters: SubscriberFilter): Promise<{
       lastOpenedAt: sub.lastOpenedAt,
       joinedAt: sub.createdAt,
       name: sub.name,
+      preferences: sub.preferences
+        ? {
+            frequency: sub.preferences.frequency,
+            categories: sub.preferences.categories,
+          }
+        : null,
     }));
 
     return {

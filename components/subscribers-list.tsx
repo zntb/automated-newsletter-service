@@ -11,6 +11,8 @@ import {
   Download,
   ChevronLeft,
   ChevronRight,
+  Calendar,
+  Tag,
 } from 'lucide-react';
 import {
   Select,
@@ -44,6 +46,26 @@ import {
   Subscriber,
 } from '@/app/actions/subscriber';
 
+// Category name mapping
+const categoryNames: Record<string, string> = {
+  tech: 'Technology',
+  business: 'Business',
+  lifestyle: 'Lifestyle',
+  finance: 'Finance',
+  marketing: 'Marketing',
+  design: 'Design',
+  development: 'Development',
+  productivity: 'Productivity',
+};
+
+// Frequency label mapping
+const frequencyLabels: Record<string, string> = {
+  DAILY: 'Daily',
+  WEEKLY: 'Weekly',
+  MONTHLY: 'Monthly',
+  REALTIME: 'Real-time',
+};
+
 export default function SubscribersList() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -52,7 +74,7 @@ export default function SubscribersList() {
   const [loading, setLoading] = useState(false);
 
   const [page, setPage] = useState(1);
-  const [perPage] = useState(5);
+  const [perPage] = useState(10);
   const [totalPages, setTotalPages] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
 
@@ -120,12 +142,31 @@ export default function SubscribersList() {
 
   const handleExport = () => {
     const csv = [
-      ['Email', 'Status', 'Joined Date', 'Last Opened'],
+      [
+        'Email',
+        'Name',
+        'Status',
+        'Frequency',
+        'Categories',
+        'Joined Date',
+        'Last Opened',
+      ],
       ...subscribers.map(s => [
         s.email,
+        s.name || '',
         s.status,
-        s.joinedAt || 'Never',
-        s.lastOpenedAt || 'Never',
+        s.preferences?.frequency
+          ? frequencyLabels[s.preferences.frequency] || s.preferences.frequency
+          : 'Not set',
+        s.preferences?.categories
+          ? s.preferences.categories
+              .map(cat => categoryNames[cat] || cat)
+              .join('; ')
+          : 'Not set',
+        s.joinedAt ? new Date(s.joinedAt).toLocaleDateString() : 'Never',
+        s.lastOpenedAt
+          ? new Date(s.lastOpenedAt).toLocaleDateString()
+          : 'Never',
       ]),
     ]
       .map(row => row.join(','))
@@ -169,9 +210,10 @@ export default function SubscribersList() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value='all'>All</SelectItem>
-              <SelectItem value='active'>Active</SelectItem>
-              <SelectItem value='unsubscribed'>Unsubscribed</SelectItem>
-              <SelectItem value='bounced'>Bounced</SelectItem>
+              <SelectItem value='CONFIRMED'>Confirmed</SelectItem>
+              <SelectItem value='PENDING'>Pending</SelectItem>
+              <SelectItem value='UNSUBSCRIBED'>Unsubscribed</SelectItem>
+              <SelectItem value='BOUNCED'>Bounced</SelectItem>
             </SelectContent>
           </Select>
 
@@ -234,120 +276,183 @@ export default function SubscribersList() {
 
       {/* Table */}
       <Card className='bg-card overflow-hidden'>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className='w-[50px]'>
-                <Checkbox
-                  checked={
-                    selectedIds.length === subscribers.length &&
-                    subscribers.length > 0
-                  }
-                  onCheckedChange={handleSelectAll}
-                />
-              </TableHead>
-              <TableHead className='font-semibold'>Email</TableHead>
-              <TableHead className='font-semibold'>Status</TableHead>
-              <TableHead className='font-semibold'>Joined</TableHead>
-              <TableHead className='font-semibold'>Last Opened</TableHead>
-              <TableHead className='text-right font-semibold'>
-                Actions
-              </TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {loading ? (
+        <div className='overflow-x-auto'>
+          <Table>
+            <TableHeader>
               <TableRow>
-                <TableCell colSpan={6} className='h-24 text-center'>
-                  <div className='flex items-center justify-center text-sm text-muted-foreground'>
-                    Loading subscribers...
-                  </div>
-                </TableCell>
+                <TableHead className='w-[50px]'>
+                  <Checkbox
+                    checked={
+                      selectedIds.length === subscribers.length &&
+                      subscribers.length > 0
+                    }
+                    onCheckedChange={handleSelectAll}
+                  />
+                </TableHead>
+                <TableHead className='font-semibold'>Email</TableHead>
+                <TableHead className='font-semibold'>Name</TableHead>
+                <TableHead className='font-semibold'>Status</TableHead>
+                <TableHead className='font-semibold'>Frequency</TableHead>
+                <TableHead className='font-semibold'>Topics</TableHead>
+                <TableHead className='font-semibold'>Joined</TableHead>
+                <TableHead className='text-right font-semibold'>
+                  Actions
+                </TableHead>
               </TableRow>
-            ) : subscribers.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={6} className='h-24 text-center'>
-                  <div className='flex items-center justify-center text-sm text-muted-foreground'>
-                    No subscribers found
-                  </div>
-                </TableCell>
-              </TableRow>
-            ) : (
-              subscribers.map(subscriber => (
-                <TableRow
-                  key={subscriber.id}
-                  className='hover:bg-muted/50 data-[state=selected]:bg-muted'
-                >
-                  <TableCell>
-                    <Checkbox
-                      checked={selectedIds.includes(subscriber.id)}
-                      onCheckedChange={() => handleSelectOne(subscriber.id)}
-                    />
-                  </TableCell>
-                  <TableCell className='font-medium'>
-                    {subscriber.email}
-                  </TableCell>
-                  <TableCell>
-                    <span
-                      className={`inline-flex px-2 py-1 rounded-full text-xs font-medium ${
-                        subscriber.status === 'active'
-                          ? 'bg-accent/20 text-accent'
-                          : subscriber.status === 'bounced'
-                          ? 'bg-destructive/20 text-destructive'
-                          : 'bg-muted text-muted-foreground'
-                      }`}
-                    >
-                      {subscriber.status}
-                    </span>
-                  </TableCell>
-                  <TableCell className='text-muted-foreground'>
-                    {subscriber.joinedAt
-                      ? subscriber.joinedAt.toLocaleDateString()
-                      : 'Never'}
-                  </TableCell>
-                  <TableCell className='text-muted-foreground'>
-                    {subscriber.lastOpenedAt
-                      ? subscriber.lastOpenedAt.toLocaleDateString()
-                      : 'Never'}
-                  </TableCell>
-                  <TableCell className='text-right'>
-                    <AlertDialog
-                      open={deleteDialogOpen}
-                      onOpenChange={setDeleteDialogOpen}
-                    >
-                      <AlertDialogTrigger asChild>
-                        <Button
-                          variant='ghost'
-                          size='sm'
-                          onClick={() => setDeleteTargetId(subscriber.id)}
-                          className='text-destructive hover:bg-destructive/10'
-                        >
-                          <Trash2 className='h-4 w-4' />
-                        </Button>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent>
-                        <AlertDialogHeader>
-                          <AlertDialogTitle>
-                            Delete subscriber?
-                          </AlertDialogTitle>
-                          <AlertDialogDescription>
-                            This action cannot be undone.
-                          </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel>Cancel</AlertDialogCancel>
-                          <AlertDialogAction onClick={handleDeleteConfirmed}>
-                            Confirm
-                          </AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
+            </TableHeader>
+            <TableBody>
+              {loading ? (
+                <TableRow>
+                  <TableCell colSpan={8} className='h-24 text-center'>
+                    <div className='flex items-center justify-center text-sm text-muted-foreground'>
+                      Loading subscribers...
+                    </div>
                   </TableCell>
                 </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
+              ) : subscribers.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={8} className='h-24 text-center'>
+                    <div className='flex items-center justify-center text-sm text-muted-foreground'>
+                      No subscribers found
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ) : (
+                subscribers.map(subscriber => (
+                  <TableRow
+                    key={subscriber.id}
+                    className='hover:bg-muted/50 data-[state=selected]:bg-muted'
+                  >
+                    <TableCell>
+                      <Checkbox
+                        checked={selectedIds.includes(subscriber.id)}
+                        onCheckedChange={() => handleSelectOne(subscriber.id)}
+                      />
+                    </TableCell>
+                    <TableCell className='font-medium'>
+                      {subscriber.email}
+                    </TableCell>
+                    <TableCell className='text-muted-foreground'>
+                      {subscriber.name || '-'}
+                    </TableCell>
+                    <TableCell>
+                      <span
+                        className={`inline-flex px-2 py-1 rounded-full text-xs font-medium ${
+                          subscriber.status === 'CONFIRMED'
+                            ? 'bg-green-500/20 text-green-700 dark:text-green-400'
+                            : subscriber.status === 'PENDING'
+                            ? 'bg-yellow-500/20 text-yellow-700 dark:text-yellow-400'
+                            : subscriber.status === 'BOUNCED'
+                            ? 'bg-red-500/20 text-red-700 dark:text-red-400'
+                            : 'bg-gray-500/20 text-gray-700 dark:text-gray-400'
+                        }`}
+                      >
+                        {subscriber.status}
+                      </span>
+                    </TableCell>
+                    <TableCell>
+                      {subscriber.preferences?.frequency ? (
+                        <div className='flex items-center gap-1.5 text-sm'>
+                          <Calendar className='h-3.5 w-3.5 text-muted-foreground' />
+                          <span className='font-medium'>
+                            {frequencyLabels[
+                              subscriber.preferences.frequency
+                            ] || subscriber.preferences.frequency}
+                          </span>
+                        </div>
+                      ) : (
+                        <span className='text-xs text-muted-foreground italic'>
+                          Not set
+                        </span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {subscriber.preferences?.categories &&
+                      subscriber.preferences.categories.length > 0 ? (
+                        <div className='flex flex-wrap gap-1 max-w-[200px]'>
+                          {subscriber.preferences.categories
+                            .slice(0, 3)
+                            .map((cat, idx) => (
+                              <span
+                                key={idx}
+                                className='inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-blue-500/10 text-blue-700 dark:text-blue-400'
+                              >
+                                <Tag className='h-2.5 w-2.5' />
+                                {categoryNames[cat] || cat}
+                              </span>
+                            ))}
+                          {subscriber.preferences.categories.length > 3 && (
+                            <span
+                              className='inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-500/10 text-gray-700 dark:text-gray-400'
+                              title={subscriber.preferences.categories
+                                .slice(3)
+                                .map(cat => categoryNames[cat] || cat)
+                                .join(', ')}
+                            >
+                              +{subscriber.preferences.categories.length - 3}
+                            </span>
+                          )}
+                        </div>
+                      ) : (
+                        <span className='text-xs text-muted-foreground italic'>
+                          Not set
+                        </span>
+                      )}
+                    </TableCell>
+                    <TableCell className='text-muted-foreground text-sm'>
+                      {subscriber.joinedAt
+                        ? new Date(subscriber.joinedAt).toLocaleDateString()
+                        : 'Never'}
+                    </TableCell>
+                    <TableCell className='text-right'>
+                      <AlertDialog
+                        open={
+                          deleteDialogOpen && deleteTargetId === subscriber.id
+                        }
+                        onOpenChange={open => {
+                          setDeleteDialogOpen(open);
+                          if (!open) setDeleteTargetId(null);
+                        }}
+                      >
+                        <AlertDialogTrigger asChild>
+                          <Button
+                            variant='ghost'
+                            size='sm'
+                            onClick={() => {
+                              setDeleteTargetId(subscriber.id);
+                              setDeleteDialogOpen(true);
+                            }}
+                            className='text-destructive hover:bg-destructive/10'
+                          >
+                            <Trash2 className='h-4 w-4' />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>
+                              Delete subscriber?
+                            </AlertDialogTitle>
+                            <AlertDialogDescription>
+                              This will permanently delete{' '}
+                              <strong>{subscriber.email}</strong> and all
+                              related data. This action cannot be undone.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction onClick={handleDeleteConfirmed}>
+                              Delete
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </div>
       </Card>
 
       {/* Pagination */}
