@@ -6,10 +6,16 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
-import { Bell, Mail, CheckCircle, Settings, Calendar } from 'lucide-react';
+import {
+  Bell,
+  Mail,
+  CheckCircle,
+  Settings,
+  Calendar,
+  RefreshCw,
+} from 'lucide-react';
 import { toast } from 'sonner';
 
-// Frequency options
 const frequencies = [
   { value: 'DAILY', label: 'Daily', description: 'Get updates every day' },
   { value: 'WEEKLY', label: 'Weekly', description: 'Once per week digest' },
@@ -21,7 +27,6 @@ const frequencies = [
   },
 ];
 
-// Available categories
 const categories = [
   {
     id: 'tech',
@@ -88,6 +93,7 @@ export default function SubscribeForm() {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [isPending, startTransition] = useTransition();
   const [submitting, setSubmitting] = useState(false);
+  const [isUpdate, setIsUpdate] = useState(false);
 
   const handleCategoryToggle = (categoryId: string) => {
     setSelectedCategories(prev =>
@@ -97,7 +103,6 @@ export default function SubscribeForm() {
     );
   };
 
-  // Called when user clicks "Complete Subscription" in preferences step
   const handleCompleteSubscription = async () => {
     setError('');
     if (!email || !name) {
@@ -109,7 +114,6 @@ export default function SubscribeForm() {
       return;
     }
 
-    // Build payload
     const payload = {
       email,
       name,
@@ -135,11 +139,20 @@ export default function SubscribeForm() {
         return;
       }
 
-      // success
-      toast.success(
-        json.message || 'Please check your email to confirm subscription',
-      );
-      // go to confirm step
+      // Check if this was an update to existing subscription
+      setIsUpdate(json.isUpdate || false);
+
+      if (json.isUpdate) {
+        toast.success('Preferences Updated!', {
+          description:
+            json.message || 'Your subscription preferences have been updated.',
+        });
+      } else {
+        toast.success(
+          json.message || 'Please check your email to confirm subscription',
+        );
+      }
+
       setStep('confirm');
       setSubmitting(false);
     } catch (err) {
@@ -155,7 +168,6 @@ export default function SubscribeForm() {
   return (
     <div className='min-h-screen bg-linear-to-br from-blue-50 via-white to-purple-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 p-4 md:p-8'>
       <div className='max-w-4xl mx-auto'>
-        {/* Header */}
         <div className='text-center mb-8'>
           <div className='inline-flex items-center justify-center w-16 h-16 bg-linear-to-br from-blue-500 to-purple-600 rounded-full mb-4'>
             <Mail className='w-8 h-8 text-white' />
@@ -168,7 +180,6 @@ export default function SubscribeForm() {
           </p>
         </div>
 
-        {/* Progress */}
         <div className='flex items-center justify-center mb-8'>
           <div className='flex items-center gap-2'>
             <div
@@ -213,7 +224,6 @@ export default function SubscribeForm() {
           </div>
         </div>
 
-        {/* Step 1: Email (client-only, does NOT submit to server) */}
         {step === 'email' && (
           <Card className='p-8'>
             <div className='space-y-6'>
@@ -223,7 +233,8 @@ export default function SubscribeForm() {
                   Let&apos;s Start with Your Email
                 </h2>
                 <p className='text-gray-600 dark:text-gray-400'>
-                  We&apos;ll send you a confirmation link to get started
+                  Already subscribed? Update your preferences by re-entering
+                  your email
                 </p>
               </div>
 
@@ -261,7 +272,7 @@ export default function SubscribeForm() {
                 onClick={() => {
                   setError('');
                   if (email && name) {
-                    setStep('preferences'); // just advance locally
+                    setStep('preferences');
                   } else {
                     setError('Please fill in all fields');
                   }
@@ -275,10 +286,8 @@ export default function SubscribeForm() {
           </Card>
         )}
 
-        {/* Step 2: Preferences (final submit happens here) */}
         {step === 'preferences' && (
           <div className='space-y-6'>
-            {/* Frequency */}
             <Card className='p-8'>
               <div className='space-y-6'>
                 <div>
@@ -327,7 +336,6 @@ export default function SubscribeForm() {
               </div>
             </Card>
 
-            {/* Categories */}
             <Card className='p-8'>
               <div className='space-y-6'>
                 <div>
@@ -392,7 +400,6 @@ export default function SubscribeForm() {
 
               <Button
                 onClick={() => {
-                  // use transition to show pending UX (non-blocking)
                   startTransition(() => {
                     handleCompleteSubscription();
                   });
@@ -400,25 +407,46 @@ export default function SubscribeForm() {
                 className='flex-1 bg-linear-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700'
                 disabled={selectedCategories.length === 0 || submitting}
               >
-                {submitting ? 'Subscribing...' : 'Complete Subscription'}
+                {submitting ? (
+                  <>
+                    <RefreshCw className='w-4 h-4 mr-2 animate-spin' />
+                    Processing...
+                  </>
+                ) : (
+                  'Complete Subscription'
+                )}
               </Button>
             </div>
           </div>
         )}
 
-        {/* Step 3: Confirmation */}
         {step === 'confirm' && (
           <Card className='p-8'>
             <div className='text-center space-y-6'>
               <div className='inline-flex items-center justify-center w-20 h-20 bg-linear-to-br from-green-400 to-green-600 rounded-full'>
-                <CheckCircle className='w-10 h-10 text-white' />
+                {isUpdate ? (
+                  <RefreshCw className='w-10 h-10 text-white' />
+                ) : (
+                  <CheckCircle className='w-10 h-10 text-white' />
+                )}
               </div>
 
               <div>
-                <h2 className='text-3xl font-bold mb-2'>Almost There!</h2>
+                <h2 className='text-3xl font-bold mb-2'>
+                  {isUpdate ? 'Preferences Updated!' : 'Almost There!'}
+                </h2>
                 <p className='text-gray-600 dark:text-gray-400 text-lg'>
-                  We&apos;ve sent a confirmation email to{' '}
-                  <strong>{email}</strong>
+                  {isUpdate ? (
+                    <>
+                      Your subscription preferences for <strong>{email}</strong>{' '}
+                      have been updated successfully!
+                    </>
+                  ) : (
+                    <>
+                      We&apos;ve sent a confirmation email to{' '}
+                      <strong>{email}</strong>
+                    </>
+                  )}
                 </p>
               </div>
 
@@ -439,18 +467,26 @@ export default function SubscribeForm() {
                 </div>
               </div>
 
-              <div className='space-y-3 text-sm text-gray-600 dark:text-gray-400'>
-                <p>
-                  Click the confirmation link in your email to activate your
-                  subscription.
-                </p>
-                <p>
-                  Can&apos;t find it? Check your spam folder or{' '}
-                  <button className='text-blue-500 hover:underline'>
-                    resend confirmation email
-                  </button>
-                </p>
-              </div>
+              {!isUpdate && (
+                <div className='space-y-3 text-sm text-gray-600 dark:text-gray-400'>
+                  <p>
+                    Click the confirmation link in your email to activate your
+                    subscription.
+                  </p>
+                  <p>
+                    Can&apos;t find it? Check your spam folder or{' '}
+                    <button
+                      onClick={() => {
+                        setStep('email');
+                        toast.info('Please re-enter your details to resend');
+                      }}
+                      className='text-blue-500 hover:underline'
+                    >
+                      resend confirmation email
+                    </button>
+                  </p>
+                </div>
+              )}
 
               <Button
                 onClick={() => {
@@ -459,17 +495,19 @@ export default function SubscribeForm() {
                   setName('');
                   setSelectedCategories(['tech', 'business']);
                   setFrequency('WEEKLY');
+                  setIsUpdate(false);
                 }}
                 variant='outline'
                 className='w-full'
               >
-                Subscribe with Different Email
+                {isUpdate
+                  ? 'Update Preferences Again'
+                  : 'Subscribe with Different Email'}
               </Button>
             </div>
           </Card>
         )}
 
-        {/* Footer */}
         <div className='text-center mt-8 text-sm text-gray-600 dark:text-gray-400'>
           <p>
             You can update your preferences anytime from the links in our

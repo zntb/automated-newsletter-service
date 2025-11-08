@@ -1,6 +1,6 @@
 // app/api/subscribe/route.ts
 import { NextResponse } from 'next/server';
-import { addSubscriber } from '@/app/actions/subscriber';
+import { subscribeWithPreferences } from '@/app/actions/preferences';
 
 export async function POST(req: Request) {
   try {
@@ -14,12 +14,27 @@ export async function POST(req: Request) {
       );
     }
 
-    // call your existing server action
-    const result = await addSubscriber(email, name);
+    if (!frequency) {
+      return NextResponse.json(
+        { success: false, error: 'Missing frequency preference' },
+        { status: 400 },
+      );
+    }
 
-    // NOTE: addSubscriber currently only creates the subscriber & sends confirmation email.
-    // If you want to store frequency/categories in SubscriberPreference, add code here
-    // to create subscriber preferences (using prisma) after addSubscriber returns successfully.
+    if (!categories || categories.length === 0) {
+      return NextResponse.json(
+        { success: false, error: 'Please select at least one category' },
+        { status: 400 },
+      );
+    }
+
+    // Use subscribeWithPreferences which handles both new and existing subscribers
+    const result = await subscribeWithPreferences({
+      email,
+      name,
+      frequency,
+      categories,
+    });
 
     return NextResponse.json(result);
   } catch (err) {
