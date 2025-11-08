@@ -172,8 +172,8 @@ model Newsletter {
   bounceCount Int @default(0)
 
   // Relations - Make author required
-  authorId   String         @db.ObjectId
-  author     User           @relation(fields: [authorId], references: [id], onDelete: Cascade) // Added onDelete
+  authorId   String?        @db.ObjectId
+  author     User?          @relation(fields: [authorId], references: [id], onDelete: Cascade)
   templateId String?        @db.ObjectId
   template   EmailTemplate? @relation(fields: [templateId], references: [id])
   emailLogs  EmailLog[]
