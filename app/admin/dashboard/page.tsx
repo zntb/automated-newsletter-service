@@ -17,10 +17,11 @@ import {
   Legend,
   ResponsiveContainer,
 } from 'recharts';
-import { Users, Mail, Settings, LogOut } from 'lucide-react';
+import { Users, Mail, Settings, LogOut, LoaderCircle } from 'lucide-react';
 import SubscribersList from '@/components/subscribers-list';
 import NewsletterComposer from '@/components/newsletter-composer';
 import { getDashboardStats } from '@/app/actions/dashboard';
+import Link from 'next/link';
 
 export default function AdminDashboard() {
   const router = useRouter();
@@ -58,7 +59,7 @@ export default function AdminDashboard() {
   if (status === 'loading') {
     return (
       <div className='flex min-h-screen items-center justify-center'>
-        <p>Loading...</p>
+        <LoaderCircle className='animate-spin rounded-full h-12 w-12 text-blue-600 shadow border-b-2 border-blue-500  mx-auto mb-4' />
       </div>
     );
   }
@@ -81,11 +82,17 @@ export default function AdminDashboard() {
     <main className='min-h-screen bg-background'>
       {/* Header */}
       <header className='border-b border-border bg-card'>
-        <div className='mx-auto max-w-7xl px-4 py-4 sm:px-6 lg:px-8'>
+        <div className='mx-auto max-w-7xl px-4 py-3 sm:px-6 lg:px-8'>
           <div className='flex items-center justify-between'>
+            <Link href='/' className='flex items-center gap-2'>
+              <div className='rounded-full bg-primary/10 p-2'>
+                <Mail className='h-5 w-5 text-primary' />
+              </div>
+              <span className='font-bold'>Newsletter</span>
+            </Link>
             <div>
               <h1 className='text-2xl font-bold'>Admin Dashboard</h1>
-              <p className='text-sm text-muted-foreground'>
+              <p className='text-sm text-center text-muted-foreground'>
                 Welcome, {session?.user?.name || session?.user?.email}
               </p>
             </div>

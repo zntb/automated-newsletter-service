@@ -563,9 +563,218 @@ export async function unsubscribeWithReason(
       },
     });
 
+    // Send unsubscribe confirmation email
+    const unsubscribeConfirmationHtml = `
+      <!DOCTYPE html>
+      <html lang="en">
+        <head>
+          <meta charset="UTF-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>Unsubscribe Confirmation</title>
+          <style>
+            body { 
+              margin: 0; 
+              padding: 0; 
+              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+              line-height: 1.6;
+              color: #333;
+            }
+            .container {
+              max-width: 600px;
+              margin: 0 auto;
+              padding: 20px;
+            }
+            .header {
+              background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%);
+              color: white;
+              padding: 40px 20px;
+              text-align: center;
+              border-radius: 8px 8px 0 0;
+            }
+            .header h1 {
+              margin: 0;
+              font-size: 28px;
+              font-weight: 700;
+            }
+            .header p {
+              margin: 10px 0 0;
+              opacity: 0.95;
+              font-size: 16px;
+            }
+            .content {
+              background: white;
+              padding: 40px 30px;
+              border: 1px solid #e5e7eb;
+              border-top: none;
+            }
+            .content p {
+              margin: 0 0 20px;
+              font-size: 16px;
+              color: #4b5563;
+            }
+            .info-box {
+              background: #f3f4f6;
+              border-left: 4px solid #6b7280;
+              padding: 20px;
+              margin: 25px 0;
+              border-radius: 4px;
+            }
+            .info-box h3 {
+              margin: 0 0 10px;
+              color: #1f2937;
+              font-size: 18px;
+            }
+            .info-box ul {
+              margin: 0;
+              padding-left: 20px;
+            }
+            .info-box li {
+              margin: 8px 0;
+              color: #4b5563;
+            }
+            .resubscribe-box {
+              background: #dbeafe;
+              border: 2px solid #3b82f6;
+              padding: 25px;
+              margin: 25px 0;
+              border-radius: 8px;
+              text-align: center;
+            }
+            .resubscribe-box h3 {
+              margin: 0 0 15px;
+              color: #1e40af;
+              font-size: 20px;
+            }
+            .resubscribe-box p {
+              color: #1e3a8a;
+              margin: 0 0 20px;
+            }
+            .button {
+              display: inline-block;
+              padding: 14px 32px;
+              background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+              color: white;
+              text-decoration: none;
+              border-radius: 8px;
+              font-weight: 600;
+              font-size: 16px;
+            }
+            .footer {
+              margin-top: 30px;
+              padding-top: 20px;
+              border-top: 1px solid #e5e7eb;
+              font-size: 13px;
+              color: #6b7280;
+              text-align: center;
+            }
+            .footer p {
+              margin: 5px 0;
+            }
+            .emoji {
+              font-size: 48px;
+              margin-bottom: 15px;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="header">
+              <div class="emoji">👋</div>
+              <h1>You've Been Unsubscribed</h1>
+              <p>We're sorry to see you go</p>
+            </div>
+            
+            <div class="content">
+              <p>Hi ${subscriber.name || 'there'},</p>
+              
+              <p>This email confirms that you have been successfully unsubscribed from our newsletter. You will no longer receive emails from us.</p>
+              
+              ${
+                reason && reason !== 'No reason provided'
+                  ? `
+              <div class="info-box">
+                <h3>📝 Your Feedback</h3>
+                <p><strong>You told us:</strong> ${reason}</p>
+                <p>Thank you for sharing your thoughts. We take all feedback seriously and use it to improve our service.</p>
+              </div>
+              `
+                  : ''
+              }
+              
+              <div class="info-box">
+                <h3>✅ What's Been Done</h3>
+                <ul>
+                  <li>Your email address (${email}) has been removed from our active mailing list</li>
+                  <li>You'll stop receiving newsletters within 48 hours</li>
+                  <li>Your subscription preferences have been cleared</li>
+                  <li>We've recorded your unsubscribe date: ${new Date().toLocaleDateString()}</li>
+                </ul>
+              </div>
+              
+              <div class="resubscribe-box">
+                <h3>Changed Your Mind?</h3>
+                <p>You can resubscribe anytime! We'd love to have you back.</p>
+                <a href="${
+                  process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+                }" class="button">
+                  Resubscribe
+                </a>
+              </div>
+              
+              <p>We hope our paths cross again in the future. If you have any questions or concerns, please don't hesitate to contact our support team.</p>
+              
+              <p style="margin-top: 30px;">
+                Best wishes,<br>
+                <strong>The Newsletter Team</strong>
+              </p>
+              
+              <div class="footer">
+                <p><strong>Why did you receive this email?</strong></p>
+                <p>This is a one-time confirmation that you've unsubscribed from our newsletter. You won't receive any further emails from us unless you resubscribe.</p>
+                <p style="margin-top: 15px;">© ${new Date().getFullYear()} Newsletter Service. All rights reserved.</p>
+              </div>
+            </div>
+          </div>
+        </body>
+      </html>
+    `;
+
+    // Send the confirmation email
+    try {
+      await sendEmail({
+        to: email,
+        subject: "Unsubscribe Confirmation - We'll Miss You",
+        html: unsubscribeConfirmationHtml,
+        text: `
+Hi ${subscriber.name || 'there'},
+
+This email confirms that you have been successfully unsubscribed from our newsletter.
+
+What's been done:
+- Your email address (${email}) has been removed from our mailing list
+- You'll stop receiving newsletters within 48 hours
+- Your subscription preferences have been cleared
+
+${reason && reason !== 'No reason provided' ? `Your feedback: ${reason}` : ''}
+
+Changed your mind? You can resubscribe anytime at ${
+          process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+        }
+
+Best wishes,
+The Newsletter Team
+        `.trim(),
+      });
+
+      console.log(`[Unsubscribe Confirmation Email Sent] To: ${email}`);
+    } catch (emailError) {
+      console.error('[Unsubscribe Confirmation Email Error]', emailError);
+      // Don't fail the unsubscribe if email fails, but log it
+    }
+
     return {
       success: true,
-      message: 'Successfully unsubscribed',
+      message: 'Successfully unsubscribed. Check your email for confirmation.',
     };
   } catch (error) {
     console.error('[unsubscribeWithReason Error]', error);

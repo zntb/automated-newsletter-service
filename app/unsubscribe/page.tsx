@@ -6,7 +6,7 @@ import { useSearchParams } from 'next/navigation';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
-import { MailX, CheckCircle, ArrowLeft } from 'lucide-react';
+import { MailX, CheckCircle, ArrowLeft, Mail } from 'lucide-react';
 import { toast } from 'sonner';
 import { unsubscribeWithReason } from '@/app/actions/preferences';
 
@@ -247,6 +247,15 @@ function UnsubscribeContent() {
                 </p>
               </div>
 
+              <div className='bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-6'>
+                <Mail className='w-8 h-8 text-blue-500 mx-auto mb-3' />
+                <h3 className='font-semibold mb-2'>📧 Check Your Email</h3>
+                <p className='text-sm text-gray-600 dark:text-gray-400'>
+                  We've sent a confirmation email to <strong>{email}</strong>{' '}
+                  with details about your unsubscribe request.
+                </p>
+              </div>
+
               <div className='bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-6'>
                 <h3 className='font-semibold mb-2'>What happens next?</h3>
                 <ul className='text-left space-y-2 text-sm text-gray-600 dark:text-gray-400'>
@@ -265,6 +274,10 @@ function UnsubscribeContent() {
                   <li className='flex items-start gap-2'>
                     <span className='text-green-500 mt-0.5'>✓</span>
                     <span>You can resubscribe anytime from our homepage</span>
+                  </li>
+                  <li className='flex items-start gap-2'>
+                    <span className='text-green-500 mt-0.5'>✓</span>
+                    <span>Check your email for a confirmation message</span>
                   </li>
                 </ul>
               </div>
