@@ -572,3 +572,81 @@ export async function unsubscribeWithReason(
     return { success: false, error: 'Failed to unsubscribe' };
   }
 }
+
+export async function getManagePreferencesToken(email: string) {
+  try {
+    const subscriber = await prisma.subscriber.findUnique({
+      where: { email },
+      select: { status: true },
+    });
+
+    if (!subscriber) {
+      return { success: false, error: 'No subscription found with this email' };
+    }
+
+    // Generate a secure token for managing preferences
+    const token = crypto.randomBytes(32).toString('hex');
+
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+    const manageUrl = `${appUrl}/manage-preferences?email=${encodeURIComponent(
+      email,
+    )}&token=${token}`;
+
+    await sendEmail({
+      to: email,
+      subject: 'Manage Your Newsletter Preferences',
+      html: `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <style>
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+          .button { 
+            display: inline-block; 
+            padding: 12px 24px; 
+            background-color: #0070f3; 
+            color: white; 
+            text-decoration: none; 
+            border-radius: 5px; 
+            margin: 20px 0; 
+          }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <h1>Manage Your Preferences</h1>
+          <p>You're already subscribed! Click below to manage your newsletter preferences:</p>
+          <a href="${manageUrl}" class="button">Manage Preferences</a>
+          <p>This link will expire in 1 hour for security.</p>
+        </div>
+      </body>
+    </html>
+  `,
+    });
+
+    // Delete any existing tokens for this email
+    await prisma.verificationToken.deleteMany({
+      where: { identifier: email },
+    });
+
+    // Store the new token (expires in 1 hour for security)
+    await prisma.verificationToken.create({
+      data: {
+        identifier: email,
+        token,
+        expires: new Date(Date.now() + 60 * 60 * 1000), // 1 hour
+      },
+    });
+
+    return {
+      success: true,
+      token,
+      status: subscriber.status,
+      isExisting: subscriber.status === 'CONFIRMED',
+    };
+  } catch (error) {
+    console.error('[getManagePreferencesToken Error]', error);
+    return { success: false, error: 'Failed to generate token' };
+  }
+}

@@ -165,6 +165,52 @@ export default function SubscribeForm() {
     }
   };
 
+  const checkExistingSubscriber = async () => {
+    setError('');
+    setSubmitting(true);
+
+    try {
+      const res = await fetch('/api/subscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email,
+          checkExisting: true,
+        }),
+      });
+
+      const json = await res.json();
+
+      if (!res.ok || !json?.success) {
+        setError(json?.error || 'Failed to check subscription');
+        setSubmitting(false);
+        return;
+      }
+
+      if (json.isExisting) {
+        // Existing subscriber - redirect to manage preferences
+        toast.info('Existing Subscription Found', {
+          description: 'Redirecting you to manage your preferences...',
+        });
+
+        setTimeout(() => {
+          window.location.href = json.redirectUrl;
+        }, 1500);
+      } else {
+        // New subscriber - continue to preferences
+        setStep('preferences');
+        setSubmitting(false);
+      }
+    } catch (err) {
+      console.error('[checkExisting] error', err);
+      toast.error('Connection failed', {
+        description: 'Please try again',
+      });
+      setError('Network error');
+      setSubmitting(false);
+    }
+  };
+
   return (
     <div className='min-h-screen bg-linear-to-br from-blue-50 via-white to-purple-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 p-4 md:p-8'>
       <div className='max-w-4xl mx-auto'>
@@ -269,18 +315,18 @@ export default function SubscribeForm() {
               )}
 
               <Button
-                onClick={() => {
-                  setError('');
-                  if (email && name) {
-                    setStep('preferences');
-                  } else {
-                    setError('Please fill in all fields');
-                  }
-                }}
+                onClick={checkExistingSubscriber}
                 className='w-full bg-linear-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700'
-                disabled={!email || !name}
+                disabled={!email || !name || submitting}
               >
-                Continue to Preferences
+                {submitting ? (
+                  <>
+                    <RefreshCw className='w-4 h-4 mr-2 animate-spin' />
+                    Checking...
+                  </>
+                ) : (
+                  'Continue to Preferences'
+                )}
               </Button>
             </div>
           </Card>

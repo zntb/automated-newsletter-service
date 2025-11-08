@@ -1,11 +1,15 @@
 // app/api/subscribe/route.ts
 import { NextResponse } from 'next/server';
-import { subscribeWithPreferences } from '@/app/actions/preferences';
+import {
+  subscribeWithPreferences,
+  getManagePreferencesToken,
+} from '@/app/actions/preferences';
+import { prisma } from '@/lib/prisma';
 
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { email, name, frequency, categories } = body;
+    const { email, name, frequency, categories, checkExisting } = body;
 
     if (!email) {
       return NextResponse.json(
@@ -14,6 +18,36 @@ export async function POST(req: Request) {
       );
     }
 
+    // If this is just a check for existing subscriber
+    if (checkExisting) {
+      const subscriber = await prisma.subscriber.findUnique({
+        where: { email },
+        select: { status: true, id: true },
+      });
+
+      if (subscriber && subscriber.status === 'CONFIRMED') {
+        // Generate token and redirect to manage preferences
+        const tokenResult = await getManagePreferencesToken(email);
+
+        if (tokenResult.success) {
+          return NextResponse.json({
+            success: true,
+            isExisting: true,
+            token: tokenResult.token,
+            redirectUrl: `/manage-preferences?email=${encodeURIComponent(
+              email,
+            )}&token=${tokenResult.token}`,
+          });
+        }
+      }
+
+      return NextResponse.json({
+        success: true,
+        isExisting: false,
+      });
+    }
+
+    // Original subscription logic
     if (!frequency) {
       return NextResponse.json(
         { success: false, error: 'Missing frequency preference' },
@@ -28,7 +62,6 @@ export async function POST(req: Request) {
       );
     }
 
-    // Use subscribeWithPreferences which handles both new and existing subscribers
     const result = await subscribeWithPreferences({
       email,
       name,
