@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-// components/enhanced-newsletter-composer.tsx
+// components/newsletter-composer.tsx
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -13,16 +13,18 @@ import {
   Sparkles,
   Code,
   FileText,
-  Image,
-  Link,
   Bold,
   Italic,
   List,
-  AlignLeft,
+  Link,
+  Heading,
+  Quote,
+  Image as ImageIcon,
   X,
   Check,
   Copy,
   Download,
+  AlertCircle,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { sendNewsletterAction } from '@/app/actions/newsletter';
@@ -47,16 +49,25 @@ import {
   emailTemplates,
   replaceTemplateVariables,
 } from '@/lib/email-templates';
+import {
+  markdownToHtml,
+  wrapInEmailTemplate,
+  getContentStats,
+  validateMarkdown,
+} from '@/lib/markdown-utils';
 
-interface EditorTool {
+type EditorMode = 'visual' | 'html' | 'markdown';
+
+interface MarkdownTool {
   icon: React.ComponentType<{ className?: string }>;
   label: string;
-  action: string;
+  action: () => void;
 }
 
 export default function NewsletterComposer() {
   const [subject, setSubject] = useState('');
   const [content, setContent] = useState('');
+  const [markdown, setMarkdown] = useState('');
   const [preheader, setPreheader] = useState('');
   const [sending, setSending] = useState(false);
   const [sendTime, setSendTime] = useState('');
@@ -64,14 +75,13 @@ export default function NewsletterComposer() {
     'all' | 'active' | 'new' | 'engaged'
   >('all');
   const [showPreview, setShowPreview] = useState(false);
-  const [editorMode, setEditorMode] = useState<'visual' | 'html'>('visual');
+  const [editorMode, setEditorMode] = useState<EditorMode>('markdown');
 
   // Template state
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [templates, setTemplates] = useState<EmailTemplate[]>([]);
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [loadingTemplates, setLoadingTemplates] = useState(false);
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const [selectedCategory, setSelectedCategory] = useState('all');
 
   // Professional templates state
   const [showProfessionalTemplates, setShowProfessionalTemplates] =
@@ -82,19 +92,32 @@ export default function NewsletterComposer() {
     Record<string, string>
   >({});
 
-  // Editor tools
-  const editorTools: EditorTool[] = [
-    { icon: Bold, label: 'Bold', action: 'bold' },
-    { icon: Italic, label: 'Italic', action: 'italic' },
-    { icon: List, label: 'List', action: 'list' },
-    { icon: Link, label: 'Link', action: 'link' },
-    { icon: Image, label: 'Image', action: 'image' },
-    { icon: AlignLeft, label: 'Heading', action: 'heading' },
-  ];
+  // Markdown state
+  const [markdownStats, setMarkdownStats] = useState<any>(null);
+  const [markdownIssues, setMarkdownIssues] = useState<any[]>([]);
 
   useEffect(() => {
     loadTemplates();
   }, []);
+
+  // Update markdown stats when content changes
+  useEffect(() => {
+    if (editorMode === 'markdown' && markdown) {
+      const stats = getContentStats(markdown);
+      setMarkdownStats(stats);
+
+      const issues = validateMarkdown(markdown);
+      setMarkdownIssues(issues);
+    }
+  }, [markdown, editorMode]);
+
+  // Sync content between modes
+  useEffect(() => {
+    if (editorMode === 'markdown' && markdown) {
+      const html = markdownToHtml(markdown);
+      setContent(html);
+    }
+  }, [markdown, editorMode]);
 
   const loadTemplates = async () => {
     setLoadingTemplates(true);
@@ -106,16 +129,30 @@ export default function NewsletterComposer() {
   };
 
   const handleSend = async () => {
-    if (!subject || !content) {
-      toast.error('Please fill in all required fields');
+    if (!subject) {
+      toast.error('Please add a subject line');
       return;
     }
+
+    // Use markdown content if in markdown mode, otherwise use HTML content
+    const finalContent =
+      editorMode === 'markdown' && markdown
+        ? markdownToHtml(markdown)
+        : content;
+
+    if (!finalContent) {
+      toast.error('Please add content to your newsletter');
+      return;
+    }
+
+    // Wrap in email template
+    const emailHtml = wrapInEmailTemplate(finalContent, subject, preheader);
 
     setSending(true);
     try {
       const result = await sendNewsletterAction({
         subject,
-        content,
+        content: emailHtml,
         audience,
       });
 
@@ -125,6 +162,7 @@ export default function NewsletterComposer() {
         });
         setSubject('');
         setContent('');
+        setMarkdown('');
         setPreheader('');
       } else {
         toast.error('Error', {
@@ -145,7 +183,6 @@ export default function NewsletterComposer() {
     setSubject(template.subject);
     setPreheader(template.preview);
 
-    // Initialize variables
     const vars: Record<string, string> = {};
     template.variables?.forEach((v: string) => {
       vars[v] = '';
@@ -165,7 +202,10 @@ export default function NewsletterComposer() {
       selectedProfessionalTemplate.content,
       templateVariables,
     );
-    setContent(finalContent);
+
+    if (editorMode === 'html') {
+      setContent(finalContent);
+    }
 
     const finalSubject = replaceTemplateVariables(
       selectedProfessionalTemplate.subject,
@@ -178,59 +218,83 @@ export default function NewsletterComposer() {
     });
   };
 
-  const handleInsertElement = (action: string) => {
+  // Markdown toolbar actions
+  const insertMarkdown = (
+    before: string,
+    after: string = '',
+    placeholder: string = 'text',
+  ) => {
     const textarea = document.querySelector(
-      'textarea[name="content"]',
+      'textarea[name="markdown"]',
     ) as HTMLTextAreaElement;
     if (!textarea) return;
 
     const start = textarea.selectionStart;
     const end = textarea.selectionEnd;
-    const selectedText = content.substring(start, end);
-    let insertion = '';
+    const selectedText = markdown.substring(start, end);
 
-    switch (action) {
-      case 'bold':
-        insertion = `<strong>${selectedText || 'Bold text'}</strong>`;
-        break;
-      case 'italic':
-        insertion = `<em>${selectedText || 'Italic text'}</em>`;
-        break;
-      case 'list':
-        insertion = `<ul>\n  <li>Item 1</li>\n  <li>Item 2</li>\n  <li>Item 3</li>\n</ul>`;
-        break;
-      case 'link':
-        insertion = `<a href="https://example.com">${
-          selectedText || 'Link text'
-        }</a>`;
-        break;
-      case 'image':
-        insertion = `<img src="https://via.placeholder.com/600x300" alt="Image description" style="width: 100%; height: auto;" />`;
-        break;
-      case 'heading':
-        insertion = `<h2>${selectedText || 'Heading'}</h2>`;
-        break;
-    }
+    const insertion = before + (selectedText || placeholder) + after;
+    const newMarkdown =
+      markdown.substring(0, start) + insertion + markdown.substring(end);
+    setMarkdown(newMarkdown);
 
-    const newContent =
-      content.substring(0, start) + insertion + content.substring(end);
-    setContent(newContent);
-
-    // Set cursor position after insertion
     setTimeout(() => {
       textarea.focus();
-      textarea.setSelectionRange(
-        start + insertion.length,
-        start + insertion.length,
-      );
+      const newPos =
+        start + before.length + (selectedText || placeholder).length;
+      textarea.setSelectionRange(newPos, newPos);
     }, 0);
   };
+
+  const markdownTools: MarkdownTool[] = [
+    {
+      icon: Heading,
+      label: 'Heading',
+      action: () => insertMarkdown('## ', '', 'Heading'),
+    },
+    {
+      icon: Bold,
+      label: 'Bold',
+      action: () => insertMarkdown('**', '**', 'bold'),
+    },
+    {
+      icon: Italic,
+      label: 'Italic',
+      action: () => insertMarkdown('*', '*', 'italic'),
+    },
+    {
+      icon: Link,
+      label: 'Link',
+      action: () => insertMarkdown('[', '](url)', 'link text'),
+    },
+    {
+      icon: ImageIcon,
+      label: 'Image',
+      action: () => insertMarkdown('![', '](url)', 'alt text'),
+    },
+    {
+      icon: List,
+      label: 'List',
+      action: () => insertMarkdown('\n* ', '', 'list item'),
+    },
+    {
+      icon: Quote,
+      label: 'Quote',
+      action: () => insertMarkdown('> ', '', 'quote'),
+    },
+    {
+      icon: Code,
+      label: 'Code',
+      action: () => insertMarkdown('`', '`', 'code'),
+    },
+  ];
 
   const handleExportTemplate = () => {
     const templateData = {
       name: subject || 'Untitled Template',
       subject,
-      content,
+      content: editorMode === 'markdown' ? markdown : content,
+      contentType: editorMode,
       preview: preheader,
       category: 'custom',
       createdAt: new Date().toISOString(),
@@ -249,12 +313,26 @@ export default function NewsletterComposer() {
     toast.success('Template exported!');
   };
 
-  const filteredTemplates =
-    selectedCategory === 'all'
-      ? templates
-      : templates.filter(t => t.category === selectedCategory);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const getCurrentContent = () => {
+    if (editorMode === 'markdown') {
+      return (
+        markdown ||
+        '<p class="text-muted-foreground">Start writing in Markdown...</p>'
+      );
+    }
+    return (
+      content ||
+      '<p class="text-muted-foreground">Your content will appear here...</p>'
+    );
+  };
 
-  const categories = Array.from(new Set(templates.map(t => t.category)));
+  const getRenderedHtml = () => {
+    if (editorMode === 'markdown' && markdown) {
+      return markdownToHtml(markdown);
+    }
+    return content;
+  };
 
   return (
     <div className='space-y-6'>
@@ -262,7 +340,7 @@ export default function NewsletterComposer() {
         <div>
           <h2 className='text-2xl font-bold'>Newsletter Composer</h2>
           <p className='text-sm text-muted-foreground'>
-            Create beautiful newsletters with professional templates
+            Create beautiful newsletters with Markdown, HTML, or Visual editor
           </p>
         </div>
         <Button
@@ -427,6 +505,14 @@ export default function NewsletterComposer() {
                 <label className='text-sm font-medium'>Content *</label>
                 <div className='flex items-center gap-2'>
                   <Button
+                    onClick={() => setEditorMode('markdown')}
+                    variant={editorMode === 'markdown' ? 'default' : 'ghost'}
+                    size='sm'
+                  >
+                    <FileText className='h-4 w-4 mr-1' />
+                    Markdown
+                  </Button>
+                  <Button
                     onClick={() => setEditorMode('visual')}
                     variant={editorMode === 'visual' ? 'default' : 'ghost'}
                     size='sm'
@@ -445,12 +531,13 @@ export default function NewsletterComposer() {
                 </div>
               </div>
 
-              {editorMode === 'visual' && (
+              {/* Markdown Toolbar */}
+              {editorMode === 'markdown' && (
                 <div className='flex flex-wrap gap-1 p-2 bg-muted/50 rounded-t-md border-b'>
-                  {editorTools.map((tool, index) => (
+                  {markdownTools.map((tool, index) => (
                     <Button
                       key={index}
-                      onClick={() => handleInsertElement(tool.action)}
+                      onClick={tool.action}
                       variant='ghost'
                       size='sm'
                       title={tool.label}
@@ -462,17 +549,76 @@ export default function NewsletterComposer() {
                 </div>
               )}
 
-              <textarea
-                name='content'
-                placeholder={
-                  editorMode === 'html'
-                    ? 'Write your HTML content here...'
-                    : 'Start typing or use the toolbar to format your content...'
-                }
-                value={content}
-                onChange={e => setContent(e.target.value)}
-                className='h-96 w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary font-mono'
-              />
+              {/* Editor Textarea */}
+              {editorMode === 'markdown' ? (
+                <textarea
+                  name='markdown'
+                  placeholder='# Start writing in Markdown...
+
+Write naturally with simple formatting:
+- Use **bold** or *italic*
+- Add [links](url) and ![images](url)
+- Create lists with * or 1.
+- Use > for quotes
+- Add code with `backticks`'
+                  value={markdown}
+                  onChange={e => setMarkdown(e.target.value)}
+                  className='h-96 w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary font-mono'
+                />
+              ) : (
+                <textarea
+                  name='content'
+                  placeholder={
+                    editorMode === 'html'
+                      ? '<h1>Your HTML content here...</h1>'
+                      : 'Start typing or use the toolbar to format your content...'
+                  }
+                  value={content}
+                  onChange={e => setContent(e.target.value)}
+                  className='h-96 w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary font-mono'
+                />
+              )}
+
+              {/* Markdown Stats & Issues */}
+              {editorMode === 'markdown' && markdownStats && (
+                <div className='grid grid-cols-3 gap-4 p-3 bg-muted/30 rounded-md text-sm'>
+                  <div>
+                    <span className='text-muted-foreground'>Words:</span>
+                    <span className='font-semibold ml-2'>
+                      {markdownStats.words}
+                    </span>
+                  </div>
+                  <div>
+                    <span className='text-muted-foreground'>Reading:</span>
+                    <span className='font-semibold ml-2'>
+                      {markdownStats.readingTime} min
+                    </span>
+                  </div>
+                  <div>
+                    <span className='text-muted-foreground'>Links:</span>
+                    <span className='font-semibold ml-2'>
+                      {markdownStats.links}
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {/* Markdown Issues */}
+              {editorMode === 'markdown' && markdownIssues.length > 0 && (
+                <div className='space-y-2'>
+                  {markdownIssues.map((issue, i) => (
+                    <div
+                      key={i}
+                      className='flex items-start gap-2 p-2 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded text-sm'
+                    >
+                      <AlertCircle className='h-4 w-4 text-yellow-600 mt-0.5 shrink-0' />
+                      <span className='text-yellow-800 dark:text-yellow-200'>
+                        {issue.message}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </Card>
         </div>
@@ -530,7 +676,7 @@ export default function NewsletterComposer() {
 
             <Button
               onClick={handleSend}
-              disabled={!subject || !content || sending}
+              disabled={!subject || (!content && !markdown) || sending}
               className='w-full bg-primary text-primary-foreground hover:bg-primary/90'
             >
               <Send className='mr-2 h-4 w-4' />
@@ -539,7 +685,7 @@ export default function NewsletterComposer() {
 
             <Button
               onClick={handleExportTemplate}
-              disabled={!subject || !content}
+              disabled={!subject || (!content && !markdown)}
               variant='outline'
               className='w-full bg-transparent'
             >
@@ -557,7 +703,8 @@ export default function NewsletterComposer() {
             <h3 className='font-bold'>Preview</h3>
             <Button
               onClick={() => {
-                navigator.clipboard.writeText(content);
+                const html = getRenderedHtml();
+                navigator.clipboard.writeText(html);
                 toast.success('HTML copied to clipboard');
               }}
               variant='ghost'
@@ -583,11 +730,9 @@ export default function NewsletterComposer() {
               </p>
             </div>
             <div
-              className='prose prose-sm max-w-none'
+              className='prose prose-sm max-w-none dark:prose-invert'
               dangerouslySetInnerHTML={{
-                __html:
-                  content ||
-                  '<p class="text-muted-foreground">Your content will appear here...</p>',
+                __html: getRenderedHtml(),
               }}
             />
           </div>
