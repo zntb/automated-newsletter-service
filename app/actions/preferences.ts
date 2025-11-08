@@ -32,15 +32,169 @@ export async function subscribeWithPreferences(
       include: { preferences: true },
     });
 
+    // If subscriber is already confirmed, update their preferences instead
     if (existingSubscriber?.status === 'CONFIRMED') {
+      // Update preferences for existing confirmed subscriber
+      await prisma.subscriberPreference.upsert({
+        where: { subscriberId: existingSubscriber.id },
+        update: {
+          frequency: data.frequency as any,
+          categories: data.categories,
+          noEmails: false,
+        },
+        create: {
+          subscriberId: existingSubscriber.id,
+          frequency: data.frequency as any,
+          categories: data.categories,
+          noEmails: false,
+        },
+      });
+
+      // Update tags on subscriber
+      await prisma.subscriber.update({
+        where: { id: existingSubscriber.id },
+        data: {
+          tags: data.categories,
+          name: data.name || existingSubscriber.name,
+        },
+      });
+
+      // Send confirmation email about updated preferences
+      const frequencyLabels = {
+        DAILY: 'Daily',
+        WEEKLY: 'Weekly',
+        MONTHLY: 'Monthly',
+        REALTIME: 'Real-time',
+      };
+
+      const categoryNames: Record<string, string> = {
+        tech: 'Technology',
+        business: 'Business',
+        lifestyle: 'Lifestyle',
+        finance: 'Finance',
+        marketing: 'Marketing',
+        design: 'Design',
+        development: 'Development',
+        productivity: 'Productivity',
+      };
+
+      const selectedCategories = data.categories
+        .map(cat => categoryNames[cat as keyof typeof categoryNames])
+        .filter(Boolean)
+        .join(', ');
+
+      const updateEmailHtml = `
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <style>
+              body { 
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                line-height: 1.6;
+                color: #333;
+                margin: 0;
+                padding: 0;
+              }
+              .container {
+                max-width: 600px;
+                margin: 0 auto;
+                padding: 20px;
+              }
+              .header {
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                color: white;
+                padding: 40px 20px;
+                text-align: center;
+                border-radius: 8px 8px 0 0;
+              }
+              .content {
+                background: white;
+                padding: 40px 30px;
+                border: 1px solid #e5e7eb;
+                border-top: none;
+              }
+              .preferences-box {
+                background: #f0f9ff;
+                border-left: 4px solid #667eea;
+                padding: 20px;
+                margin: 20px 0;
+                border-radius: 4px;
+              }
+              .preference-item {
+                display: flex;
+                align-items: start;
+                margin: 10px 0;
+              }
+              .preference-label {
+                font-weight: 600;
+                min-width: 100px;
+                color: #667eea;
+              }
+              .footer {
+                margin-top: 30px;
+                padding-top: 20px;
+                border-top: 1px solid #e5e7eb;
+                font-size: 12px;
+                color: #6b7280;
+                text-align: center;
+              }
+            </style>
+          </head>
+          <body>
+            <div class="container">
+              <div class="header">
+                <h1 style="margin: 0;">✨ Preferences Updated!</h1>
+                <p style="margin: 10px 0 0; opacity: 0.95;">Your subscription preferences have been saved</p>
+              </div>
+              
+              <div class="content">
+                <p>Hi ${existingSubscriber.name},</p>
+                
+                <p>Great news! We've updated your newsletter preferences based on your latest selections.</p>
+                
+                <div class="preferences-box">
+                  <h3 style="margin-top: 0; color: #667eea;">📋 Your Updated Preferences</h3>
+                  <div class="preference-item">
+                    <span class="preference-label">Frequency:</span>
+                    <span>${frequencyLabels[data.frequency]}</span>
+                  </div>
+                  <div class="preference-item">
+                    <span class="preference-label">Topics:</span>
+                    <span>${selectedCategories}</span>
+                  </div>
+                </div>
+                
+                <p>You'll start receiving newsletters according to these new preferences. Your next newsletter will reflect the topics you selected!</p>
+                
+                <div class="footer">
+                  <p>You can change your preferences anytime by clicking "Manage Preferences" in any of our emails.</p>
+                  <p>© ${new Date().getFullYear()} Newsletter Service. All rights reserved.</p>
+                </div>
+              </div>
+            </div>
+          </body>
+        </html>
+      `;
+
+      try {
+        await sendEmail({
+          to: existingSubscriber.email,
+          subject: '✨ Your Newsletter Preferences Have Been Updated',
+          html: updateEmailHtml,
+        });
+      } catch (emailError) {
+        console.error('[Preference Update Email Error]', emailError);
+      }
+
       return {
-        success: false,
-        error:
-          'This email is already subscribed. Use the manage preferences link in your emails to update.',
+        success: true,
+        message: 'Your preferences have been updated successfully!',
+        email: existingSubscriber.email,
+        isUpdate: true,
       };
     }
 
-    // Generate confirmation token
+    // For new subscribers or pending subscribers, proceed with normal flow
     const confirmationToken = crypto.randomBytes(32).toString('hex');
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
     const confirmationUrl = `${appUrl}/api/confirm-subscription?token=${confirmationToken}`;
@@ -77,7 +231,12 @@ export async function subscribeWithPreferences(
       },
     });
 
-    // Store the token
+    // Delete any existing tokens for this email
+    await prisma.verificationToken.deleteMany({
+      where: { identifier: subscriber.email },
+    });
+
+    // Store the new token
     await prisma.verificationToken.create({
       data: {
         identifier: subscriber.email,
@@ -94,7 +253,7 @@ export async function subscribeWithPreferences(
       REALTIME: 'Real-time',
     };
 
-    const categoryNames = {
+    const categoryNames: Record<string, string> = {
       tech: 'Technology',
       business: 'Business',
       lifestyle: 'Lifestyle',
@@ -243,6 +402,7 @@ export async function subscribeWithPreferences(
       success: true,
       message: 'Please check your email to confirm your subscription!',
       email: subscriber.email,
+      isUpdate: false,
     };
   } catch (error) {
     console.error('[subscribeWithPreferences Error]', error);
