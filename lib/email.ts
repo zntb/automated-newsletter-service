@@ -37,6 +37,38 @@ const createTransporter = () => {
   });
 };
 
+// ✅ NEW: Helper function to personalize content for each subscriber
+function personalizeContent(
+  content: string,
+  subscriber: { email: string; name?: string | null },
+): string {
+  let personalized = content;
+
+  // Replace {{user_name}} with subscriber name or fallback to email prefix
+  const displayName = subscriber.name || subscriber.email.split('@')[0];
+  personalized = personalized.replace(/\{\{user_name\}\}/g, displayName);
+
+  // Replace {{email}} if used in template
+  personalized = personalized.replace(/\{\{email\}\}/g, subscriber.email);
+
+  // Replace {{first_name}} - extract first name from full name or use display name
+  const firstName =
+    subscriber.name?.split(' ')[0] || subscriber.email.split('@')[0];
+  personalized = personalized.replace(/\{\{first_name\}\}/g, firstName);
+
+  // Add unsubscribe URL with subscriber email
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+  const unsubscribeUrl = `${appUrl}/unsubscribe?email=${encodeURIComponent(
+    subscriber.email,
+  )}`;
+  personalized = personalized.replace(
+    /\{\{unsubscribe_url\}\}/g,
+    unsubscribeUrl,
+  );
+
+  return personalized;
+}
+
 // Send single email
 export async function sendEmail({
   to,
@@ -87,7 +119,7 @@ export async function sendEmail({
   }
 }
 
-// Send newsletter to multiple subscribers
+// ✅ UPDATED: Send newsletter to multiple subscribers with personalization
 export async function sendNewsletter({
   subject,
   content,
@@ -97,7 +129,7 @@ export async function sendNewsletter({
 }: {
   subject: string;
   content: string;
-  subscribers: Array<{ id: string; email: string }>; // ✅ Now expects objects
+  subscribers: Array<{ id: string; email: string; name: string | null }>; // ✅ Updated type
   audience?: string;
   newsletterId?: string;
 }) {
@@ -115,13 +147,17 @@ export async function sendNewsletter({
   for (let i = 0; i < subscribers.length; i += batchSize) {
     const batch = subscribers.slice(i, i + batchSize);
 
-    const promises = batch.map(subscriber =>
-      transporter
+    const promises = batch.map(subscriber => {
+      // ✅ PERSONALIZE content for each subscriber
+      const personalizedSubject = personalizeContent(subject, subscriber);
+      const personalizedContent = personalizeContent(content, subscriber);
+
+      return transporter
         .sendMail({
           from: process.env.EMAIL_FROM || 'noreply@newsletter.com',
           to: subscriber.email,
-          subject,
-          html: content,
+          subject: personalizedSubject,
+          html: personalizedContent,
         })
         .then(async result => {
           sent++;
@@ -141,8 +177,8 @@ export async function sendNewsletter({
         .catch(error => {
           failed++;
           errors.push(`${subscriber.email}: ${error.message}`);
-        }),
-    );
+        });
+    });
 
     await Promise.all(promises);
   }
