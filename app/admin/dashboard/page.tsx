@@ -22,6 +22,7 @@ import SubscribersList from '@/components/subscribers-list';
 import NewsletterComposer from '@/components/newsletter-composer';
 import { getDashboardStats } from '@/app/actions/dashboard';
 import Link from 'next/link';
+import EmailBuilder from '@/components/email-builder';
 
 export default function AdminDashboard() {
   const router = useRouter();
@@ -142,6 +143,16 @@ export default function AdminDashboard() {
             >
               Compose
             </button>
+            <button
+              onClick={() => setActiveTab('builder')}
+              className={`border-b-2 px-0 py-4 text-sm font-medium transition ${
+                activeTab === 'builder'
+                  ? 'border-primary text-primary'
+                  : 'border-transparent text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              Email Builder
+            </button>
           </div>
         </div>
       </div>
@@ -245,6 +256,7 @@ export default function AdminDashboard() {
 
         {activeTab === 'subscribers' && <SubscribersList />}
         {activeTab === 'compose' && <NewsletterComposer />}
+        {activeTab === 'builder' && <EmailBuilder />}
       </div>
     </main>
   );
