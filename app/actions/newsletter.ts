@@ -1,3 +1,4 @@
+// app/actions/newsletter.ts
 'use server';
 
 import { prisma } from '@/lib/prisma';
@@ -29,12 +30,14 @@ export async function sendNewsletterAction(data: SendNewsletterRequest) {
       return { success: false, error: 'Unauthorized' };
     }
 
-    let subscribers: Array<{ id: string; email: string }> = [];
+    // ✅ Updated type to include name
+    let subscribers: Array<{ id: string; email: string; name: string | null }> =
+      [];
 
     if (data.audience === 'all') {
       subscribers = await prisma.subscriber.findMany({
         where: { status: 'CONFIRMED' },
-        select: { id: true, email: true },
+        select: { id: true, email: true, name: true }, // ✅ Include name
       });
     } else if (data.audience === 'active') {
       subscribers = await prisma.subscriber.findMany({
@@ -44,7 +47,7 @@ export async function sendNewsletterAction(data: SendNewsletterRequest) {
             gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
           },
         },
-        select: { id: true, email: true },
+        select: { id: true, email: true, name: true }, // ✅ Include name
       });
     } else if (data.audience === 'new') {
       subscribers = await prisma.subscriber.findMany({
@@ -54,7 +57,7 @@ export async function sendNewsletterAction(data: SendNewsletterRequest) {
             gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
           },
         },
-        select: { id: true, email: true },
+        select: { id: true, email: true, name: true }, // ✅ Include name
       });
     } else if (data.audience === 'engaged') {
       subscribers = await prisma.subscriber.findMany({
@@ -62,7 +65,7 @@ export async function sendNewsletterAction(data: SendNewsletterRequest) {
           status: 'CONFIRMED',
           openCount: { gte: 5 },
         },
-        select: { id: true, email: true },
+        select: { id: true, email: true, name: true }, // ✅ Include name
       });
     }
 
@@ -94,7 +97,7 @@ export async function sendNewsletterAction(data: SendNewsletterRequest) {
       subject: data.subject,
       content: data.content,
       audience: data.audience,
-      subscribers: subscribers,
+      subscribers: subscribers, // ✅ Now includes name field
       newsletterId: newsletter.id,
     });
 
