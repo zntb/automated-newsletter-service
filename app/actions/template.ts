@@ -13,7 +13,7 @@ export interface EmailTemplate {
   category: string;
   createdAt: Date;
   updatedAt: Date;
-  authorId: string;
+  authorId?: string | null;
 }
 
 interface TemplateResponse {
@@ -36,6 +36,15 @@ export async function getTemplates(): Promise<TemplateResponse> {
 
     const templates = await prisma.emailTemplate.findMany({
       orderBy: { createdAt: 'desc' },
+      include: {
+        author: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+      },
     });
 
     return {

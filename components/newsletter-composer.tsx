@@ -75,12 +75,11 @@ export default function NewsletterComposer() {
     'all' | 'active' | 'new' | 'engaged'
   >('all');
   const [showPreview, setShowPreview] = useState(false);
-  const [editorMode, setEditorMode] = useState<EditorMode>('markdown');
+  const [editorMode, setEditorMode] = useState<EditorMode>('html');
 
   // Template state
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+
   const [templates, setTemplates] = useState<EmailTemplate[]>([]);
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [loadingTemplates, setLoadingTemplates] = useState(false);
 
   // Professional templates state
@@ -91,6 +90,9 @@ export default function NewsletterComposer() {
   const [templateVariables, setTemplateVariables] = useState<
     Record<string, string>
   >({});
+  const [templateSource, setTemplateSource] = useState<
+    'professional' | 'database'
+  >('professional');
 
   // Markdown state
   const [markdownStats, setMarkdownStats] = useState<any>(null);
@@ -192,6 +194,74 @@ export default function NewsletterComposer() {
     setShowProfessionalTemplates(false);
     toast.success('Template applied', {
       description: 'Fill in the template variables to customize',
+    });
+  };
+
+  const handleApplyDatabaseTemplate = (template: EmailTemplate) => {
+    // Extract plain text from HTML for subject (remove HTML tags)
+    const extractPlainText = (html: string) => {
+      // Create a temporary div to parse HTML
+      const tempDiv = document.createElement('div');
+      tempDiv.innerHTML = html;
+
+      // Get text content and clean it up
+      let text = tempDiv.textContent || tempDiv.innerText || '';
+
+      // Remove extra whitespace and limit length for subject
+      text = text.replace(/\s+/g, ' ').trim();
+
+      // Take first 50 characters for subject
+      return text.substring(0, 50) + (text.length > 50 ? '...' : '');
+    };
+
+    // For email builder templates, extract meaningful subject
+    let subjectText = template.subject;
+
+    // If subject contains HTML or looks like it's from email builder, extract from content
+    if (
+      template.subject.includes('<') ||
+      template.subject.includes('>') ||
+      template.subject.includes('<!DOCTYPE') ||
+      template.subject.includes('<html')
+    ) {
+      subjectText = extractPlainText(template.content);
+    }
+
+    setSelectedProfessionalTemplate({
+      ...template,
+      variables: [], // Database templates don't have variables
+      preview: template.preview || '',
+    });
+
+    setSubject(subjectText);
+    setPreheader(template.preview || '');
+
+    // Set content based on current editor mode
+    if (editorMode === 'markdown') {
+      // Convert HTML to markdown for markdown editor
+      const htmlToMarkdown = (html: string) => {
+        // Simple conversion - you might want to use a library like turndown for better conversion
+        return html
+          .replace(/<h1[^>]*>(.*?)<\/h1>/gi, '# $1\n\n')
+          .replace(/<h2[^>]*>(.*?)<\/h2>/gi, '## $1\n\n')
+          .replace(/<h3[^>]*>(.*?)<\/h3>/gi, '### $1\n\n')
+          .replace(/<p[^>]*>(.*?)<\/p>/gi, '$1\n\n')
+          .replace(/<a[^>]*href="([^"]*)"[^>]*>(.*?)<\/a>/gi, '[$2]($1)')
+          .replace(/<strong[^>]*>(.*?)<\/strong>/gi, '**$1**')
+          .replace(/<em[^>]*>(.*?)<\/em>/gi, '*$1*')
+          .replace(/<[^>]*>/g, '')
+          .replace(/\n\s*\n/g, '\n\n')
+          .trim();
+      };
+
+      setMarkdown(htmlToMarkdown(template.content));
+    } else {
+      setContent(template.content);
+    }
+
+    setShowProfessionalTemplates(false);
+    toast.success('Template applied', {
+      description: 'Database template loaded successfully',
     });
   };
 
@@ -313,20 +383,6 @@ export default function NewsletterComposer() {
     toast.success('Template exported!');
   };
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const getCurrentContent = () => {
-    if (editorMode === 'markdown') {
-      return (
-        markdown ||
-        '<p class="text-muted-foreground">Start writing in Markdown...</p>'
-      );
-    }
-    return (
-      content ||
-      '<p class="text-muted-foreground">Your content will appear here...</p>'
-    );
-  };
-
   const getRenderedHtml = () => {
     if (editorMode === 'markdown' && markdown) {
       return markdownToHtml(markdown);
@@ -357,58 +413,148 @@ export default function NewsletterComposer() {
         open={showProfessionalTemplates}
         onOpenChange={setShowProfessionalTemplates}
       >
-        <AlertDialogContent className='max-w-4xl max-h-[80vh] overflow-y-auto'>
+        <AlertDialogContent className='max-w-6xl max-h-[80vh] overflow-y-auto'>
           <AlertDialogHeader>
-            <AlertDialogTitle>Professional Email Templates</AlertDialogTitle>
+            <AlertDialogTitle>Email Templates</AlertDialogTitle>
             <AlertDialogDescription>
-              Choose from our collection of professionally designed templates
+              Choose from professional templates or your saved templates
             </AlertDialogDescription>
           </AlertDialogHeader>
 
-          <div className='grid gap-4 md:grid-cols-2 py-4'>
-            {emailTemplates.map((template, index) => (
-              <Card
-                key={index}
-                className='bg-card p-4 hover:shadow-lg transition-shadow cursor-pointer'
-              >
-                <div className='space-y-3'>
-                  <div className='flex items-start justify-between'>
-                    <div>
-                      <h3 className='font-bold text-lg'>{template.name}</h3>
-                      <span className='text-xs px-2 py-1 bg-muted rounded-full text-muted-foreground'>
-                        {template.category}
-                      </span>
-                    </div>
-                  </div>
-                  <p className='text-sm text-muted-foreground line-clamp-2'>
-                    {template.preview}
-                  </p>
-                  <div className='flex flex-wrap gap-1'>
-                    {template.variables?.slice(0, 3).map((v, i) => (
-                      <span
-                        key={i}
-                        className='text-xs px-2 py-1 bg-accent/20 rounded text-accent'
-                      >
-                        {v}
-                      </span>
-                    ))}
-                    {template.variables && template.variables.length > 3 && (
-                      <span className='text-xs px-2 py-1 bg-muted rounded text-muted-foreground'>
-                        +{template.variables.length - 3} more
-                      </span>
-                    )}
-                  </div>
-                  <Button
-                    onClick={() => handleApplyProfessionalTemplate(template)}
-                    size='sm'
-                    className='w-full bg-primary text-primary-foreground hover:bg-primary/90'
-                  >
-                    Use Template
-                  </Button>
-                </div>
-              </Card>
-            ))}
+          {/* Template Source Tabs */}
+          <div className='flex border-b'>
+            <Button
+              variant={templateSource === 'professional' ? 'default' : 'ghost'}
+              onClick={() => setTemplateSource('professional')}
+              className='rounded-none border-b-2 border-transparent data-[state=active]:border-primary'
+            >
+              Professional Templates
+            </Button>
+            <Button
+              variant={templateSource === 'database' ? 'default' : 'ghost'}
+              onClick={() => setTemplateSource('database')}
+              className='rounded-none border-b-2 border-transparent data-[state=active]:border-primary'
+            >
+              My Templates ({templates.length})
+            </Button>
           </div>
+
+          {/* Professional Templates */}
+          {templateSource === 'professional' && (
+            <div className='grid gap-4 md:grid-cols-2 py-4'>
+              {emailTemplates.map((template, index) => (
+                <Card
+                  key={`pro-${index}`}
+                  className='bg-card p-4 hover:shadow-lg transition-shadow cursor-pointer'
+                >
+                  <div className='space-y-3'>
+                    <div className='flex items-start justify-between'>
+                      <div>
+                        <h3 className='font-bold text-lg'>{template.name}</h3>
+                        <span className='text-xs px-2 py-1 bg-muted rounded-full text-muted-foreground'>
+                          {template.category}
+                        </span>
+                      </div>
+                    </div>
+                    <p className='text-sm text-muted-foreground line-clamp-2'>
+                      {template.preview}
+                    </p>
+                    <div className='flex flex-wrap gap-1'>
+                      {template.variables?.slice(0, 3).map((v, i) => (
+                        <span
+                          key={i}
+                          className='text-xs px-2 py-1 bg-accent/20 rounded text-accent'
+                        >
+                          {v}
+                        </span>
+                      ))}
+                      {template.variables && template.variables.length > 3 && (
+                        <span className='text-xs px-2 py-1 bg-muted rounded text-muted-foreground'>
+                          +{template.variables.length - 3} more
+                        </span>
+                      )}
+                    </div>
+                    <Button
+                      onClick={() => handleApplyProfessionalTemplate(template)}
+                      size='sm'
+                      className='w-full bg-primary text-primary-foreground hover:bg-primary/90'
+                    >
+                      Use Template
+                    </Button>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          )}
+
+          {/* Database Templates */}
+          {templateSource === 'database' && (
+            <div className='py-4'>
+              {loadingTemplates ? (
+                <div className='flex justify-center py-8'>
+                  <div className='animate-spin rounded-full h-8 w-8 border-b-2 border-primary'></div>
+                </div>
+              ) : templates.length === 0 ? (
+                <div className='text-center py-8 text-muted-foreground'>
+                  <FileText className='h-12 w-12 mx-auto mb-4 opacity-50' />
+                  <p>No templates saved yet</p>
+                  <p className='text-sm'>
+                    Create and save templates to see them here
+                  </p>
+                </div>
+              ) : (
+                <div className='grid gap-4 md:grid-cols-2'>
+                  {templates.map(template => (
+                    <Card
+                      key={`db-${template.id}`}
+                      className='bg-card p-4 hover:shadow-lg transition-shadow cursor-pointer group'
+                    >
+                      <div className='space-y-3'>
+                        <div className='flex items-start justify-between'>
+                          <div>
+                            <h3 className='font-bold text-lg'>
+                              {template.name}
+                            </h3>
+                            <span className='text-xs px-2 py-1 bg-muted rounded-full text-muted-foreground'>
+                              {template.category}
+                            </span>
+                          </div>
+                          <div className='opacity-0 group-hover:opacity-100 transition-opacity'>
+                            <Button
+                              variant='ghost'
+                              size='sm'
+                              onClick={e => {
+                                e.stopPropagation();
+                                handleApplyDatabaseTemplate(template);
+                              }}
+                            >
+                              Use
+                            </Button>
+                          </div>
+                        </div>
+                        <p className='text-sm text-muted-foreground line-clamp-2'>
+                          {template.preview || 'No preview available'}
+                        </p>
+                        <div className='flex justify-between items-center text-xs text-muted-foreground'>
+                          <span>Subject: {template.subject}</span>
+                          <span>
+                            {new Date(template.createdAt).toLocaleDateString()}
+                          </span>
+                        </div>
+                        <Button
+                          onClick={() => handleApplyDatabaseTemplate(template)}
+                          size='sm'
+                          className='w-full bg-primary text-primary-foreground hover:bg-primary/90'
+                        >
+                          Use Template
+                        </Button>
+                      </div>
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
 
           <AlertDialogFooter>
             <AlertDialogCancel>Close</AlertDialogCancel>
@@ -505,13 +651,14 @@ export default function NewsletterComposer() {
                 <label className='text-sm font-medium'>Content *</label>
                 <div className='flex items-center gap-2'>
                   <Button
-                    onClick={() => setEditorMode('markdown')}
-                    variant={editorMode === 'markdown' ? 'default' : 'ghost'}
+                    onClick={() => setEditorMode('html')}
+                    variant={editorMode === 'html' ? 'default' : 'ghost'}
                     size='sm'
                   >
-                    <FileText className='h-4 w-4 mr-1' />
-                    Markdown
+                    <Code className='h-4 w-4 mr-1' />
+                    HTML
                   </Button>
+
                   <Button
                     onClick={() => setEditorMode('visual')}
                     variant={editorMode === 'visual' ? 'default' : 'ghost'}
@@ -521,12 +668,12 @@ export default function NewsletterComposer() {
                     Visual
                   </Button>
                   <Button
-                    onClick={() => setEditorMode('html')}
-                    variant={editorMode === 'html' ? 'default' : 'ghost'}
+                    onClick={() => setEditorMode('markdown')}
+                    variant={editorMode === 'markdown' ? 'default' : 'ghost'}
                     size='sm'
                   >
-                    <Code className='h-4 w-4 mr-1' />
-                    HTML
+                    <FileText className='h-4 w-4 mr-1' />
+                    Markdown
                   </Button>
                 </div>
               </div>

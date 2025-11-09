@@ -201,9 +201,9 @@ model EmailTemplate {
   preview  String?
   category String  @default("general")
 
-  // Relations
-  authorId    String       @db.ObjectId
-  author      User         @relation(fields: [authorId], references: [id])
+  // Relations - Make author optional to support system templates
+  authorId    String?      @db.ObjectId
+  author      User?        @relation(fields: [authorId], references: [id])
   newsletters Newsletter[]
 
   createdAt DateTime @default(now())

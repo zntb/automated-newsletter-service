@@ -23,6 +23,7 @@ import NewsletterComposer from '@/components/newsletter-composer';
 import { getDashboardStats } from '@/app/actions/dashboard';
 import Link from 'next/link';
 import EmailBuilder from '@/components/email-builder';
+import TemplateManager from '@/components/template-manager';
 
 export default function AdminDashboard() {
   const router = useRouter();
@@ -144,6 +145,16 @@ export default function AdminDashboard() {
               Compose
             </button>
             <button
+              onClick={() => setActiveTab('templates')}
+              className={`border-b-2 px-0 py-4 text-sm font-medium transition ${
+                activeTab === 'templates'
+                  ? 'border-primary text-primary'
+                  : 'border-transparent text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              Templates
+            </button>
+            <button
               onClick={() => setActiveTab('builder')}
               className={`border-b-2 px-0 py-4 text-sm font-medium transition ${
                 activeTab === 'builder'
@@ -256,6 +267,7 @@ export default function AdminDashboard() {
 
         {activeTab === 'subscribers' && <SubscribersList />}
         {activeTab === 'compose' && <NewsletterComposer />}
+        {activeTab === 'templates' && <TemplateManager />}
         {activeTab === 'builder' && <EmailBuilder />}
       </div>
     </main>
