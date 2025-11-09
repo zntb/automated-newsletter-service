@@ -307,29 +307,51 @@ export default function EmailBuilder() {
   };
 
   // Save template
-  const handleSaveTemplate = () => {
+  const handleSaveTemplate = async () => {
     if (!templateName) {
       toast.error('Please enter a template name');
       return;
     }
 
-    const template = {
-      name: templateName,
-      components,
-      html: generateHTML(),
-      createdAt: new Date().toISOString(),
-    };
+    try {
+      const html = generateHTML();
 
-    // Save to localStorage (in production, save to database)
-    const templates = JSON.parse(
-      localStorage.getItem('email-templates') || '[]',
-    );
-    templates.push(template);
-    localStorage.setItem('email-templates', JSON.stringify(templates));
+      // Extract a clean subject from the content
+      const extractSubjectFromContent = () => {
+        // Look for header content first
+        const header = components.find(c => c.type === 'header');
+        if (header?.content) {
+          return header.content.substring(0, 100); // Limit subject length
+        }
 
-    toast.success('Template saved successfully!');
-    setShowSaveDialog(false);
-    setTemplateName('');
+        // Otherwise use template name
+        return templateName;
+      };
+
+      const subject = extractSubjectFromContent();
+
+      // Import the server action
+      const { saveEmailTemplate } = await import('@/app/actions/email-builder');
+
+      const result = await saveEmailTemplate({
+        name: templateName,
+        subject: subject, // Save clean subject
+        components,
+        html,
+        preview: templateName, // Use template name as preview
+      });
+
+      if (result.success) {
+        toast.success('Template saved successfully!');
+        setShowSaveDialog(false);
+        setTemplateName('');
+      } else {
+        toast.error(result.error || 'Failed to save template');
+      }
+    } catch (error) {
+      console.error('Error saving template:', error);
+      toast.error('Failed to save template');
+    }
   };
 
   // Export HTML
