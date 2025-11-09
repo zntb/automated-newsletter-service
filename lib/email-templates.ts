@@ -155,7 +155,7 @@ export const emailTemplates: EmailTemplateData[] = [
     subject: '📊 Your {{month}} Summary',
     category: 'newsletter',
     preview: 'Data-driven monthly performance summary with metrics',
-    variables: ['month', 'user_name', 'metrics'],
+    variables: ['month', 'metrics'],
     content: `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -464,7 +464,7 @@ export const emailTemplates: EmailTemplateData[] = [
     subject: "Welcome to {{company}}! Let's get started 👋",
     category: 'welcome',
     preview: 'Warm, friendly onboarding email for new subscribers',
-    variables: ['company', 'user_name', 'next_steps'],
+    variables: ['company', 'next_steps'],
     content: `<!DOCTYPE html>
 <html lang="en">
 <head>
