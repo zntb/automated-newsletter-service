@@ -10,7 +10,7 @@ async function cleanupOrphanedNewsletters() {
 
     // Identify newsletters with invalid authors
     const orphanedNewsletters = newsletters.filter(
-      newsletter => !newsletter.author,
+      (newsletter: { author: any }) => !newsletter.author,
     );
 
     console.log(`Found ${orphanedNewsletters.length} orphaned newsletters`);

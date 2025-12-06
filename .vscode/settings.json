@@ -8,5 +8,6 @@
     "preheader",
     "Segoe",
     "sendgrid"
-  ]
+  ],
+  "prisma.pinToPrisma6": true
 }
