@@ -314,9 +314,7 @@ export async function deleteTemplates(ids: string[]): Promise<{
       },
     });
 
-    const templatesInUse = templates.filter(
-      (t: { newsletters: any[] }) => t.newsletters.length > 0,
-    );
+    const templatesInUse = templates.filter(t => t.newsletters.length > 0);
 
     if (templatesInUse.length > 0) {
       return {

@@ -75,34 +75,21 @@ export async function getSubscribers(filters: SubscriberFilter): Promise<{
       prisma.subscriber.count({ where: filter }),
     ]);
 
-    const formatted = subscribers.map(
-      (sub: {
-        id: string;
-        email: string;
-        status: string;
-        createdAt: Date;
-        lastOpenedAt: Date | null;
-        name: string | null;
-        preferences: {
-          frequency: string;
-          categories: string[];
-        } | null;
-      }) => ({
-        id: sub.id,
-        email: sub.email,
-        status: sub.status,
-        createdAt: sub.createdAt,
-        lastOpenedAt: sub.lastOpenedAt,
-        joinedAt: sub.createdAt,
-        name: sub.name,
-        preferences: sub.preferences
-          ? {
-              frequency: sub.preferences.frequency,
-              categories: sub.preferences.categories,
-            }
-          : null,
-      }),
-    );
+    const formatted = subscribers.map(sub => ({
+      id: sub.id,
+      email: sub.email,
+      status: sub.status,
+      createdAt: sub.createdAt,
+      lastOpenedAt: sub.lastOpenedAt,
+      joinedAt: sub.createdAt,
+      name: sub.name,
+      preferences: sub.preferences
+        ? {
+            frequency: sub.preferences.frequency,
+            categories: sub.preferences.categories,
+          }
+        : null,
+    }));
 
     return {
       success: true,
@@ -130,11 +117,11 @@ export async function deleteSubscribers(ids: string[]) {
       select: { email: true, id: true },
     });
 
-    const subscriberEmails = subscribers.map((s: { email: string }) => s.email);
-    const subscriberIds = subscribers.map((s: { id: string }) => s.id);
+    const subscriberEmails = subscribers.map(s => s.email);
+    const subscriberIds = subscribers.map(s => s.id);
 
     // Delete in transaction to ensure data consistency
-    await prisma.$transaction(async (tx: any) => {
+    await prisma.$transaction(async tx => {
       // Delete email logs
       await tx.emailLog.deleteMany({
         where: {
